@@ -1,0 +1,22 @@
+name: "BitBucket"
+ref_type: "bitbucket"
+description: "This is the BitBucket integration for Pinpoint"
+publisher:
+  name: "Pinpoint"
+  url: "https://pinpoint.com"
+  avatar_url: ""
+  identifier: "pinpt"
+capabilities:
+  - sourcecode.PullRequestCommit
+  - sourcecode.PullRequestComment
+installation:
+  modes:
+    - cloud
+    - selfmanaged
+  cloud:
+    network:
+      hostnames:
+        - ""
+    capabilities:
+      - web.Hook
+      - auth.OAuth2
