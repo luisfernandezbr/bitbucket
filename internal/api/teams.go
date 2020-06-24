@@ -3,11 +3,13 @@ package api
 import (
 	"fmt"
 	"net/url"
+
+	"github.com/pinpt/agent.next/sdk"
 )
 
 // FetchTeams gets team names
 func (a *API) FetchTeams() ([]string, error) {
-
+	sdk.LogDebug(a.logger, "fetching teams")
 	endpoint := "teams"
 	params := url.Values{}
 	params.Set("pagelen", "100")
@@ -22,8 +24,8 @@ func (a *API) FetchTeams() ([]string, error) {
 				Name string `json:"username"`
 			}
 			if err := obj.Unmarshal(&res); err != nil {
-				fmt.Println("ERROR", err)
 				errchan <- err
+				return
 			}
 			for _, n := range res {
 				names = append(names, n.Name)
@@ -34,13 +36,12 @@ func (a *API) FetchTeams() ([]string, error) {
 	go func() {
 		err := a.paginate(endpoint, params, out)
 		if err != nil {
-			fmt.Println("ERROR", err)
-			errchan <- nil
+			errchan <- fmt.Errorf("error fetching teams. err %v", err)
 		}
 	}()
 	if err := <-errchan; err != nil {
 		return nil, err
 	}
-
+	sdk.LogDebug(a.logger, "finished fetching teams")
 	return names, nil
 }

@@ -9,7 +9,7 @@ import (
 )
 
 func (a *API) fetchPullRequestComments(pr prResponse, reponame string, repoid string, prcommentchan chan<- *sdk.SourceCodePullRequestComment) error {
-	sdk.LogInfo(a.logger, "processing pr comments", "repo", reponame)
+	sdk.LogDebug(a.logger, "fetching pull requests comments", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests", fmt.Sprint(pr.ID), "comments")
 	params := url.Values{}
 
@@ -29,13 +29,13 @@ func (a *API) fetchPullRequestComments(pr prResponse, reponame string, repoid st
 	go func() {
 		err := a.paginate(endpoint, params, out)
 		if err != nil {
-			fmt.Println("ERROR", err)
-			errchan <- nil
+			errchan <- fmt.Errorf("error getting pr comments. err %v", err)
 		}
 	}()
 	if err := <-errchan; err != nil {
 		return err
 	}
+	sdk.LogDebug(a.logger, "finished fetching pull requests comments", "repo", reponame)
 	return nil
 }
 

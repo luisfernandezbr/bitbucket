@@ -10,7 +10,7 @@ import (
 
 // FetchUsers gets team members
 func (a *API) FetchUsers(team string, updated time.Time, userchan chan<- *sdk.SourceCodeUser) error {
-
+	sdk.LogDebug(a.logger, "fetching users", "team", team)
 	endpoint := sdk.JoinURL("teams", team, "members")
 	params := url.Values{}
 	out := make(chan objects)
@@ -29,14 +29,13 @@ func (a *API) FetchUsers(team string, updated time.Time, userchan chan<- *sdk.So
 	go func() {
 		err := a.paginate(endpoint, params, out)
 		if err != nil {
-			fmt.Println("ERROR", err)
-			errchan <- nil
+			errchan <- fmt.Errorf("error fetching users. err %v", err)
 		}
 	}()
 	if err := <-errchan; err != nil {
 		return err
 	}
-
+	sdk.LogDebug(a.logger, "finished fetching users", "team", team)
 	return nil
 }
 
@@ -49,15 +48,14 @@ func (a *API) sendUsers(raw []userResponse, updated time.Time, userchan chan<- *
 			usertype = sdk.SourceCodeUserTypeBot
 		}
 		userchan <- &sdk.SourceCodeUser{
+			AvatarURL:  sdk.StringPointer(each.Links.Avatar.Href),
 			CustomerID: a.customerID,
 			RefID:      each.UUID,
 			RefType:    a.refType,
-
-			AvatarURL: sdk.StringPointer(each.Links.Avatar.Href),
-			Member:    true,
-			Name:      each.DisplayName,
-			Type:      usertype,
-			URL:       sdk.StringPointer(each.Links.HTML.Href),
+			Member:     true,
+			Name:       each.DisplayName,
+			Type:       usertype,
+			URL:        sdk.StringPointer(each.Links.HTML.Href),
 		}
 	}
 }

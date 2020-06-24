@@ -16,7 +16,7 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 	prcommitchan chan<- *sdk.SourceCodePullRequestCommit,
 	prreviewchan chan<- *sdk.SourceCodePullRequestReview,
 ) error {
-
+	sdk.LogDebug(a.logger, "fetching pull requests", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests")
 	params := url.Values{}
 	params.Add("state", "MERGED")
@@ -52,14 +52,13 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 	go func() {
 		err := a.paginate(endpoint, params, out)
 		if err != nil {
-			fmt.Println("ERROR", err)
-			errchan <- nil
+			errchan <- fmt.Errorf("error fetching prs. err %v", err)
 		}
 	}()
 	if err := <-errchan; err != nil {
 		return err
 	}
-
+	sdk.LogDebug(a.logger, "finished fetching pull requests", "repo", reponame)
 	return nil
 }
 
@@ -70,7 +69,7 @@ func (a *API) processPullRequests(raw []prResponse, reponame string, repoid stri
 	prreviewchan chan<- *sdk.SourceCodePullRequestReview,
 ) {
 	sdk.LogInfo(a.logger, "processing prs", "repo", reponame, "len", len(raw))
-	async := NewAsync(10)
+	async := sdk.NewAsync(10)
 	for _, _pr := range raw {
 		pr := _pr
 		async.Do(func() error {
@@ -84,11 +83,9 @@ func (a *API) processPullRequests(raw []prResponse, reponame string, repoid stri
 		a.sendPullRequestReview(pr, repoid, prreviewchan)
 		a.sendPullRequest(pr, repoid, updated, prchan)
 	}
-	fmt.Println("wait")
 	if err := async.Wait(); err != nil {
 		panic(err)
 	}
-	fmt.Println("here?")
 }
 
 func (a *API) sendPullRequestReview(raw prResponse, repoid string, prreviewchan chan<- *sdk.SourceCodePullRequestReview) {

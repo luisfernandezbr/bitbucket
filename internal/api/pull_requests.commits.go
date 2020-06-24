@@ -2,14 +2,13 @@ package api
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/url"
 
 	"github.com/pinpt/agent.next/sdk"
 )
 
 func (a *API) fetchPullRequestCommits(pr prResponse, reponame string, repoid string, prcommitchan chan<- *sdk.SourceCodePullRequestCommit) error {
-	sdk.LogInfo(a.logger, "processing pr comments", "repo", reponame)
+	sdk.LogDebug(a.logger, "fetching pull requests commits", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests", fmt.Sprint(pr.ID), "commits")
 	params := url.Values{}
 	// params.Set("fields", "values.hash,values.message,values.date,values.author.raw")
@@ -30,15 +29,13 @@ func (a *API) fetchPullRequestCommits(pr prResponse, reponame string, repoid str
 	go func() {
 		err := a.paginate(endpoint, params, out)
 		if err != nil {
-			rerr := err.(*sdk.HTTPError)
-			b, _ := ioutil.ReadAll(rerr.Body)
-			fmt.Println("ERROR", string(b))
-			errchan <- nil
+			errchan <- fmt.Errorf("error fetching pr commits. err %v", err)
 		}
 	}()
 	if err := <-errchan; err != nil {
 		return err
 	}
+	sdk.LogDebug(a.logger, "finished fetching pull requests commits", "repo", reponame)
 	return nil
 }
 

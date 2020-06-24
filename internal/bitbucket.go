@@ -2,7 +2,6 @@ package internal
 
 import (
 	"errors"
-	"sync"
 	"time"
 
 	"github.com/pinpt/agent.next.bitbucket/internal/api"
@@ -81,7 +80,7 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 
 	g.httpClient = g.manager.HTTPManager().New("https://api.bitbucket.org/2.0", nil)
 
-	sdk.LogDebug(g.logger, "export starting")
+	sdk.LogInfo(g.logger, "export starting", "customer", customerID)
 
 	client := g.httpClient
 	creds := &api.BasicCreds{
@@ -108,22 +107,17 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	prcommitchan := make(chan *sdk.SourceCodePullRequestCommit)
 	prreviewchan := make(chan *sdk.SourceCodePullRequestReview)
 
-	wg := sync.WaitGroup{}
 	// =========== user ============
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		var count int
 		for r := range userchan {
 			pipe.Write(r)
 			count++
 		}
-		sdk.LogInfo(g.logger, "finished sending users", "len", count)
+		sdk.LogDebug(g.logger, "finished sending users", "len", count)
 	}()
 	// =========== repo ============
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		var count int
 		for r := range repochan {
 			pipe.Write(r)
@@ -135,55 +129,46 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 			)
 			count++
 		}
-		sdk.LogInfo(g.logger, "finished sending repos", "len", count)
+		sdk.LogDebug(g.logger, "finished sending repos", "len", count)
 	}()
 	// =========== prs ============
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		var count int
 		for r := range prchan {
 			pipe.Write(r)
 			count++
 		}
-		sdk.LogInfo(g.logger, "finished sending prs", "len", count)
+		sdk.LogDebug(g.logger, "finished sending prs", "len", count)
 	}()
 	// =========== pr comment ============
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		var count int
 		for r := range prcommentchan {
 			pipe.Write(r)
 			count++
 		}
-		sdk.LogInfo(g.logger, "finished sending pr comments", "len", count)
+		sdk.LogDebug(g.logger, "finished sending pr comments", "len", count)
 	}()
 	// =========== pr commit ============
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		var count int
 		for r := range prcommitchan {
 			pipe.Write(r)
 			count++
 		}
-		sdk.LogInfo(g.logger, "finished sending commits", "len", count)
+		sdk.LogDebug(g.logger, "finished sending commits", "len", count)
 	}()
 	// =========== pr review ============
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		var count int
 		for r := range prreviewchan {
 			pipe.Write(r)
 			count++
 		}
-		sdk.LogInfo(g.logger, "finished sending reviews", "len", count)
+		sdk.LogDebug(g.logger, "finished sending reviews", "len", count)
 	}()
 
 	for _, team := range teams {
-
 		if err := a.FetchRepos(team, updated, repochan); err != nil {
 			sdk.LogError(g.logger, "error fetching repos", "err", err)
 			return err
@@ -192,7 +177,6 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 			sdk.LogError(g.logger, "error fetching repos", "err", err)
 			return err
 		}
-
 	}
 	close(repochan)
 	close(userchan)
@@ -200,8 +184,8 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	close(prcommentchan)
 	close(prcommitchan)
 	close(prreviewchan)
-	wg.Wait()
 	state.Set("updated", time.Now().Format(time.RFC3339Nano))
+	sdk.LogInfo(g.logger, "export finished", "customer", customerID)
 
 	return nil
 }

@@ -3,10 +3,13 @@ package api
 import (
 	"fmt"
 	"net/url"
+
+	"github.com/pinpt/agent.next/sdk"
 )
 
 // FetchWorkSpaces returns all workspaces
 func (a *API) FetchWorkSpaces() ([]string, error) {
+	sdk.LogDebug(a.logger, "fetching workspaces")
 	endpoint := "workspaces"
 	params := url.Values{}
 	params.Set("pagelen", "100")
@@ -19,8 +22,8 @@ func (a *API) FetchWorkSpaces() ([]string, error) {
 		for obj := range out {
 			res := []workSpacesResponse{}
 			if err := obj.Unmarshal(&res); err != nil {
-				fmt.Println("ERROR", err)
 				errchan <- err
+				return
 			}
 			ids = append(ids, workSpaceIDs(res)...)
 		}
@@ -29,13 +32,13 @@ func (a *API) FetchWorkSpaces() ([]string, error) {
 	go func() {
 		err := a.paginate(endpoint, params, out)
 		if err != nil {
-			fmt.Println("ERROR", err)
-			errchan <- nil
+			errchan <- fmt.Errorf("error fetching workspaces. err %v", err)
 		}
 	}()
 	if err := <-errchan; err != nil {
 		return nil, err
 	}
+	sdk.LogDebug(a.logger, "finished fetching workspaces")
 	return ids, nil
 }
 

@@ -10,7 +10,7 @@ import (
 
 // FetchRepos gets team names
 func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.SourceCodeRepo) error {
-
+	sdk.LogDebug(a.logger, "fetching repos", "team", team)
 	endpoint := sdk.JoinURL("repositories", team)
 	params := url.Values{}
 	out := make(chan objects)
@@ -29,14 +29,13 @@ func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.Source
 	go func() {
 		err := a.paginate(endpoint, params, out)
 		if err != nil {
-			fmt.Println("ERROR", err)
-			errchan <- nil
+			errchan <- fmt.Errorf("error fetching repos. err %v", err)
 		}
 	}()
 	if err := <-errchan; err != nil {
 		return err
 	}
-
+	sdk.LogDebug(a.logger, "finished fetching repos", "team", team)
 	return nil
 }
 
