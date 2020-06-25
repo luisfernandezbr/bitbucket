@@ -40,18 +40,20 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 				errchan <- err
 				return
 			}
-			a.processPullRequests(rawResponse, reponame, repoid, updated,
+			if err := a.processPullRequests(rawResponse, reponame, repoid, updated,
 				prchan,
 				prcommentchan,
 				prcommitchan,
 				prreviewchan,
-			)
+			); err != nil {
+				errchan <- err
+				return
+			}
 		}
 		errchan <- nil
 	}()
 	go func() {
-		err := a.paginate(endpoint, params, out)
-		if err != nil {
+		if err := a.paginate(endpoint, params, out); err != nil {
 			errchan <- fmt.Errorf("error fetching prs. err %v", err)
 		}
 	}()
@@ -67,25 +69,20 @@ func (a *API) processPullRequests(raw []prResponse, reponame string, repoid stri
 	prcommentchan chan<- *sdk.SourceCodePullRequestComment,
 	prcommitchan chan<- *sdk.SourceCodePullRequestCommit,
 	prreviewchan chan<- *sdk.SourceCodePullRequestReview,
-) {
-	sdk.LogInfo(a.logger, "processing prs", "repo", reponame, "len", len(raw))
+) error {
 	async := sdk.NewAsync(10)
 	for _, _pr := range raw {
 		pr := _pr
 		async.Do(func() error {
-			err := a.fetchPullRequestComments(pr, reponame, repoid, prcommentchan)
-			return err
+			return a.fetchPullRequestComments(pr, reponame, repoid, prcommentchan)
 		})
 		async.Do(func() error {
-			err := a.fetchPullRequestCommits(pr, reponame, repoid, prcommitchan)
-			return err
+			return a.fetchPullRequestCommits(pr, reponame, repoid, prcommitchan)
 		})
 		a.sendPullRequestReview(pr, repoid, prreviewchan)
 		a.sendPullRequest(pr, repoid, updated, prchan)
 	}
-	if err := async.Wait(); err != nil {
-		panic(err)
-	}
+	return async.Wait()
 }
 
 func (a *API) sendPullRequestReview(raw prResponse, repoid string, prreviewchan chan<- *sdk.SourceCodePullRequestReview) {

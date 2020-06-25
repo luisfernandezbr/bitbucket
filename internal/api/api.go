@@ -69,11 +69,11 @@ func New(logger sdk.Logger, client sdk.HTTPClient, creds Creds, customerID, refT
 
 func (a *API) paginate(endpoint string, params url.Values, out chan<- objects) error {
 	defer close(out)
-	page := 1
+	var page string
 	for {
 		var res paginationResponse
-		if page > 1 {
-			params.Set("page", fmt.Sprint(page))
+		if page != "" {
+			params.Set("page", page)
 		}
 		_, err := a.get(endpoint, params, &res)
 		if err != nil {
@@ -83,7 +83,11 @@ func (a *API) paginate(endpoint string, params url.Values, out chan<- objects) e
 		if res.Next == "" {
 			return nil
 		}
-		page++
+		u, _ := url.Parse(res.Next)
+		page = u.Query().Get("page")
+		if page == "" {
+			return fmt.Errorf("no `page` in next. %v", u.String())
+		}
 	}
 }
 

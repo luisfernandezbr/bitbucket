@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 // FetchUsers gets team members
 func (a *API) FetchUsers(team string, updated time.Time, userchan chan<- *sdk.SourceCodeUser) error {
 	sdk.LogDebug(a.logger, "fetching users", "team", team)
-	endpoint := sdk.JoinURL("teams", team, "members")
+	endpoint := sdk.JoinURL("workspaces", team, "members")
 	params := url.Values{}
 	out := make(chan objects)
 	errchan := make(chan error)
@@ -29,7 +30,12 @@ func (a *API) FetchUsers(team string, updated time.Time, userchan chan<- *sdk.So
 	go func() {
 		err := a.paginate(endpoint, params, out)
 		if err != nil {
-			errchan <- fmt.Errorf("error fetching users. err %v", err)
+			rerr := err.(*sdk.HTTPError)
+			if rerr.StatusCode == http.StatusForbidden {
+				errchan <- nil
+			} else {
+				errchan <- fmt.Errorf("error fetching users. err %v", err)
+			}
 		}
 	}()
 	if err := <-errchan; err != nil {

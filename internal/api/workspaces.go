@@ -45,7 +45,7 @@ func (a *API) FetchWorkSpaces() ([]string, error) {
 func workSpaceIDs(ws []workSpacesResponse) []string {
 	var ids []string
 	for _, w := range ws {
-		ids = append(ids, w.UUID)
+		ids = append(ids, w.Slug)
 	}
 	return ids
 }

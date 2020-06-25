@@ -2,6 +2,8 @@ package internal
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pinpt/agent.next.bitbucket/internal/api"
@@ -69,13 +71,20 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 
 	// Config is any customer specific configuration for this customer
 	config := export.Config()
-	ok, username := config.GetString("username")
-	if !ok {
+	if config.BasicAuth == nil {
 		return errors.New("missing username")
 	}
-	ok, password := config.GetString("password")
-	if !ok {
-		return errors.New("missing password")
+	hasInclusions := config.Inclusions != nil
+	hasExclusions := config.Exclusions != nil
+	var accounts *accounts
+	if config.Exists("accounts") {
+		acc, err := parseAccounts(config)
+		if err != nil {
+			return fmt.Errorf("error parsing accounts configuration: %w", err)
+		}
+		accounts = &acc
+	} else {
+		sdk.LogInfo(g.logger, "no accounts configured, will do all member orgs")
 	}
 
 	g.httpClient = g.manager.HTTPManager().New("https://api.bitbucket.org/2.0", nil)
@@ -84,8 +93,8 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 
 	client := g.httpClient
 	creds := &api.BasicCreds{
-		Username: username,
-		Password: password,
+		Username: config.BasicAuth.Username,
+		Password: config.BasicAuth.Password,
 	}
 
 	var updated time.Time
@@ -95,11 +104,17 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	}
 
 	a := api.New(g.logger, client, creds, customerID, g.refType)
-	teams, err := a.FetchTeams()
+	teams, err := a.FetchWorkSpaces()
 	if err != nil {
 		return err
 	}
+	if accounts != nil {
+		for name := range *accounts {
+			teams = append(teams, name)
+		}
+	}
 
+	errchan := make(chan error)
 	repochan := make(chan *sdk.SourceCodeRepo)
 	userchan := make(chan *sdk.SourceCodeUser)
 	prchan := make(chan *sdk.SourceCodePullRequest)
@@ -107,26 +122,33 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	prcommitchan := make(chan *sdk.SourceCodePullRequestCommit)
 	prreviewchan := make(chan *sdk.SourceCodePullRequestReview)
 
-	// =========== user ============
-	go func() {
-		var count int
-		for r := range userchan {
-			pipe.Write(r)
-			count++
-		}
-		sdk.LogDebug(g.logger, "finished sending users", "len", count)
-	}()
 	// =========== repo ============
 	go func() {
 		var count int
 		for r := range repochan {
-			pipe.Write(r)
-			a.FetchPullRequests(r.Name, r.RefID, updated,
+			if hasInclusions || hasExclusions {
+				name := strings.Split(r.Name, "/")
+				if hasInclusions && !config.Inclusions.Matches(name[0], r.Name) {
+					continue
+				}
+				if hasExclusions && config.Exclusions.Matches(name[0], r.Name) {
+					continue
+				}
+			}
+
+			if err := pipe.Write(r); err != nil {
+				errchan <- err
+				return
+			}
+			if err := a.FetchPullRequests(r.Name, r.RefID, updated,
 				prchan,
 				prcommentchan,
 				prcommitchan,
 				prreviewchan,
-			)
+			); err != nil {
+				errchan <- err
+				return
+			}
 			count++
 		}
 		sdk.LogDebug(g.logger, "finished sending repos", "len", count)
@@ -135,7 +157,10 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	go func() {
 		var count int
 		for r := range prchan {
-			pipe.Write(r)
+			if err := pipe.Write(r); err != nil {
+				errchan <- err
+				return
+			}
 			count++
 		}
 		sdk.LogDebug(g.logger, "finished sending prs", "len", count)
@@ -144,7 +169,10 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	go func() {
 		var count int
 		for r := range prcommentchan {
-			pipe.Write(r)
+			if err := pipe.Write(r); err != nil {
+				errchan <- err
+				return
+			}
 			count++
 		}
 		sdk.LogDebug(g.logger, "finished sending pr comments", "len", count)
@@ -153,7 +181,10 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	go func() {
 		var count int
 		for r := range prcommitchan {
-			pipe.Write(r)
+			if err := pipe.Write(r); err != nil {
+				errchan <- err
+				return
+			}
 			count++
 		}
 		sdk.LogDebug(g.logger, "finished sending commits", "len", count)
@@ -162,30 +193,56 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	go func() {
 		var count int
 		for r := range prreviewchan {
-			pipe.Write(r)
+			if err := pipe.Write(r); err != nil {
+				errchan <- err
+				return
+			}
 			count++
 		}
 		sdk.LogDebug(g.logger, "finished sending reviews", "len", count)
 	}()
+	// =========== user ============
+	go func() {
+		var count int
+		for r := range userchan {
+			if err := pipe.Write(r); err != nil {
+				errchan <- err
+				return
+			}
+			count++
+		}
+		sdk.LogDebug(g.logger, "finished sending users", "len", count)
+	}()
+	go func() {
+		for _, team := range teams {
+			if err := a.FetchRepos(team, updated, repochan); err != nil {
+				sdk.LogError(g.logger, "error fetching repos", "err", err)
+				errchan <- err
+				return
+			}
+			if err := a.FetchUsers(team, updated, userchan); err != nil {
+				sdk.LogError(g.logger, "error fetching repos", "err", err)
+				errchan <- err
+				return
+			}
+		}
+		errchan <- nil
+	}()
 
-	for _, team := range teams {
-		if err := a.FetchRepos(team, updated, repochan); err != nil {
-			sdk.LogError(g.logger, "error fetching repos", "err", err)
-			return err
-		}
-		if err := a.FetchUsers(team, updated, userchan); err != nil {
-			sdk.LogError(g.logger, "error fetching repos", "err", err)
-			return err
-		}
+	if err := <-errchan; err != nil {
+		sdk.LogError(g.logger, "export finished with error", "err", err)
+		return err
 	}
+	state.Set("updated", time.Now().Format(time.RFC3339Nano))
+
 	close(repochan)
 	close(userchan)
 	close(prchan)
 	close(prcommentchan)
 	close(prcommitchan)
 	close(prreviewchan)
-	state.Set("updated", time.Now().Format(time.RFC3339Nano))
-	sdk.LogInfo(g.logger, "export finished", "customer", customerID)
+
+	sdk.LogInfo(g.logger, "export finished")
 
 	return nil
 }
