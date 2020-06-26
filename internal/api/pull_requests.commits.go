@@ -4,18 +4,21 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/pinpt/agent.next/sdk"
 )
 
-func (a *API) fetchPullRequestCommits(pr prResponse, reponame string, repoid string, prcommitchan chan<- *sdk.SourceCodePullRequestCommit) error {
+func (a *API) fetchPullRequestCommits(pr prResponse, reponame string, repoid string, updated time.Time, prcommitchan chan<- *sdk.SourceCodePullRequestCommit) error {
 	sdk.LogDebug(a.logger, "fetching pull requests commits", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests", fmt.Sprint(pr.ID), "commits")
 	params := url.Values{}
-	// params.Set("fields", "values.hash,values.message,values.date,values.author.raw")
+	params.Set("q", `updated_on > `+updated.Format(updatedFormat))
+	params.Set("sort", "-updated_on")
 
 	out := make(chan objects)
 	errchan := make(chan error)
+	var count int
 	go func() {
 		for obj := range out {
 			rawResponse := []prCommitResponse{}
@@ -24,6 +27,7 @@ func (a *API) fetchPullRequestCommits(pr prResponse, reponame string, repoid str
 				return
 			}
 			a.sendPullRequestCommits(rawResponse, repoid, fmt.Sprint(pr.ID), prcommitchan)
+			count += len(rawResponse)
 		}
 		errchan <- nil
 	}()
@@ -42,7 +46,7 @@ func (a *API) fetchPullRequestCommits(pr prResponse, reponame string, repoid str
 	if err := <-errchan; err != nil {
 		return err
 	}
-	sdk.LogDebug(a.logger, "finished fetching pull requests commits", "repo", reponame)
+	sdk.LogDebug(a.logger, "finished fetching pull requests commits", "repo", reponame, "count", count)
 	return nil
 }
 

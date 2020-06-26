@@ -22,14 +22,15 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 	params.Add("state", "MERGED")
 	params.Add("state", "SUPERSEDED")
 	params.Add("state", "OPEN")
-	// params.Add("state", "DECLINED") // this isn't working
-
+	params.Set("q", `updated_on > `+updated.Format(updatedFormat))
 	params.Set("sort", "-updated_on")
+
 	// Greater than 50 throws "Invalid pagelen"
 	params.Set("pagelen", "50")
 
 	out := make(chan objects)
 	errchan := make(chan error)
+	var count int
 	go func() {
 		for obj := range out {
 			if len(obj) == 0 {
@@ -49,6 +50,7 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 				errchan <- err
 				return
 			}
+			count += len(rawResponse)
 		}
 		errchan <- nil
 	}()
@@ -60,7 +62,7 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 	if err := <-errchan; err != nil {
 		return err
 	}
-	sdk.LogDebug(a.logger, "finished fetching pull requests", "repo", reponame)
+	sdk.LogDebug(a.logger, "finished fetching pull requests", "repo", reponame, "count", count)
 	return nil
 }
 
@@ -74,10 +76,10 @@ func (a *API) processPullRequests(raw []prResponse, reponame string, repoid stri
 	for _, _pr := range raw {
 		pr := _pr
 		async.Do(func() error {
-			return a.fetchPullRequestComments(pr, reponame, repoid, prcommentchan)
+			return a.fetchPullRequestComments(pr, reponame, repoid, updated, prcommentchan)
 		})
 		async.Do(func() error {
-			return a.fetchPullRequestCommits(pr, reponame, repoid, prcommitchan)
+			return a.fetchPullRequestCommits(pr, reponame, repoid, updated, prcommitchan)
 		})
 		a.sendPullRequestReview(pr, repoid, prreviewchan)
 		a.sendPullRequest(pr, repoid, updated, prchan)

@@ -129,7 +129,6 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 					continue
 				}
 			}
-
 			if err := pipe.Write(r); err != nil {
 				errchan <- err
 				return

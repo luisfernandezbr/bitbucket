@@ -4,17 +4,21 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/pinpt/agent.next/sdk"
 )
 
-func (a *API) fetchPullRequestComments(pr prResponse, reponame string, repoid string, prcommentchan chan<- *sdk.SourceCodePullRequestComment) error {
+func (a *API) fetchPullRequestComments(pr prResponse, reponame string, repoid string, updated time.Time, prcommentchan chan<- *sdk.SourceCodePullRequestComment) error {
 	sdk.LogDebug(a.logger, "fetching pull requests comments", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests", fmt.Sprint(pr.ID), "comments")
 	params := url.Values{}
+	params.Set("q", `updated_on > `+updated.Format(updatedFormat))
+	params.Set("sort", "-updated_on")
 
 	out := make(chan objects)
 	errchan := make(chan error)
+	var count int
 	go func() {
 		for obj := range out {
 			rawResponse := []prCommentResponse{}
@@ -23,6 +27,7 @@ func (a *API) fetchPullRequestComments(pr prResponse, reponame string, repoid st
 				return
 			}
 			a.sendPullRequestComments(rawResponse, repoid, fmt.Sprint(pr.ID), prcommentchan)
+			count += len(rawResponse)
 		}
 		errchan <- nil
 	}()
@@ -35,7 +40,7 @@ func (a *API) fetchPullRequestComments(pr prResponse, reponame string, repoid st
 	if err := <-errchan; err != nil {
 		return err
 	}
-	sdk.LogDebug(a.logger, "finished fetching pull requests comments", "repo", reponame)
+	sdk.LogDebug(a.logger, "finished fetching pull requests comments", "repo", reponame, "count", count)
 	return nil
 }
 

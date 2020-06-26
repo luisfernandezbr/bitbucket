@@ -41,18 +41,16 @@ func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.Source
 
 func (a *API) sendRepos(raw []repoResonse, updated time.Time, repo chan<- *sdk.SourceCodeRepo) {
 	for _, each := range raw {
-		if each.UpdatedOn.After(updated) {
-			repo <- &sdk.SourceCodeRepo{
-				Active:        true,
-				CustomerID:    a.customerID,
-				DefaultBranch: each.Mainbranch.Name,
-				Description:   each.Description,
-				Language:      each.Language,
-				Name:          each.FullName,
-				RefID:         each.UUID,
-				RefType:       a.refType,
-				URL:           each.Links.HTML.Href,
-			}
+		repo <- &sdk.SourceCodeRepo{
+			Active:        true,
+			CustomerID:    a.customerID,
+			DefaultBranch: each.Mainbranch.Name,
+			Description:   each.Description,
+			Language:      each.Language,
+			Name:          each.FullName,
+			RefID:         each.UUID,
+			RefType:       a.refType,
+			URL:           each.Links.HTML.Href,
 		}
 	}
 }

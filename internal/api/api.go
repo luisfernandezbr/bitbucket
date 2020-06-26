@@ -48,6 +48,8 @@ func (o *OAuthCreds) refresh(refType string) error {
 var _ Creds = (*BasicCreds)(nil)
 var _ Creds = (*OAuthCreds)(nil)
 
+const updatedFormat = "2006-01-02T15:04:05.999999999-07:00"
+
 // API the api object
 type API struct {
 	client     sdk.HTTPClient
