@@ -2,7 +2,6 @@ package internal
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -76,15 +75,9 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	}
 	hasInclusions := config.Inclusions != nil
 	hasExclusions := config.Exclusions != nil
-	var accounts *accounts
-	if config.Exists("accounts") {
-		acc, err := parseAccounts(config)
-		if err != nil {
-			return fmt.Errorf("error parsing accounts configuration: %w", err)
-		}
-		accounts = &acc
-	} else {
-		sdk.LogInfo(g.logger, "no accounts configured, will do all member orgs")
+	accounts := config.Accounts
+	if accounts == nil {
+		sdk.LogInfo(g.logger, "no accounts configured, will do only customer's account")
 	}
 
 	g.httpClient = g.manager.HTTPManager().New("https://api.bitbucket.org/2.0", nil)
@@ -98,11 +91,12 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	}
 
 	var updated time.Time
-	var strTime string
-	if ok, _ := state.Get("updated", &strTime); ok {
-		updated, _ = time.Parse(time.RFC3339Nano, strTime)
+	if !export.Historical() {
+		var strTime string
+		if ok, _ := state.Get("updated", &strTime); ok {
+			updated, _ = time.Parse(time.RFC3339Nano, strTime)
+		}
 	}
-
 	a := api.New(g.logger, client, creds, customerID, g.refType)
 	teams, err := a.FetchWorkSpaces()
 	if err != nil {
