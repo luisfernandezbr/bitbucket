@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/pinpt/agent.next/sdk"
 )
@@ -57,6 +58,7 @@ type API struct {
 	refType    string
 	customerID string
 	logger     sdk.Logger
+	lastRetry  time.Time
 }
 
 func New(logger sdk.Logger, client sdk.HTTPClient, creds Creds, customerID, refType string) *API {
@@ -99,9 +101,13 @@ func (a *API) get(endpoint string, params url.Values, out interface{}) (*sdk.HTT
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		if creds, ok := a.creds.(*OAuthCreds); ok {
+			if time.Since(a.lastRetry) < 1*time.Minute {
+				return nil, fmt.Errorf("error calling api. response code: %v", resp.StatusCode)
+			}
 			if err := creds.refresh(a.refType); err != nil {
 				return nil, err
 			}
+			a.lastRetry = time.Now()
 			return a.get(endpoint, params, out)
 		}
 		return nil, fmt.Errorf("error calling api. response code: %v", resp.StatusCode)

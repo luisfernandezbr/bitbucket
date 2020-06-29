@@ -70,8 +70,8 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 
 	// Config is any customer specific configuration for this customer
 	config := export.Config()
-	if config.BasicAuth == nil {
-		return errors.New("missing username")
+	if config.BasicAuth == nil && config.OAuth2Auth == nil {
+		return errors.New("missing authentication")
 	}
 	hasInclusions := config.Inclusions != nil
 	hasExclusions := config.Exclusions != nil
@@ -85,9 +85,20 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	sdk.LogInfo(g.logger, "export starting", "customer", customerID)
 
 	client := g.httpClient
-	creds := &api.BasicCreds{
-		Username: config.BasicAuth.Username,
-		Password: config.BasicAuth.Password,
+	var creds api.Creds
+	if config.BasicAuth != nil {
+		sdk.LogInfo(g.logger, "using basic auth")
+		creds = &api.BasicCreds{
+			Username: config.BasicAuth.Username,
+			Password: config.BasicAuth.Password,
+		}
+	} else {
+		sdk.LogInfo(g.logger, "using oauth2")
+		creds = &api.OAuthCreds{
+			Refresh: *config.OAuth2Auth.RefreshToken,
+			Token:   config.OAuth2Auth.AccessToken,
+			Manager: g.manager,
+		}
 	}
 
 	var updated time.Time
