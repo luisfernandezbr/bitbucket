@@ -13,7 +13,9 @@ func (a *API) fetchPullRequestComments(pr prResponse, reponame string, repoid st
 	sdk.LogDebug(a.logger, "fetching pull requests comments", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests", fmt.Sprint(pr.ID), "comments")
 	params := url.Values{}
-	params.Set("q", `updated_on > `+updated.Format(updatedFormat))
+	if !updated.IsZero() {
+		params.Set("q", `updated_on > `+updated.Format(updatedFormat))
+	}
 	params.Set("sort", "-updated_on")
 
 	out := make(chan objects)

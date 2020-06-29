@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/pinpt/agent.next/sdk"
@@ -29,15 +30,19 @@ func (b *BasicCreds) auth() string {
 
 // OAuthCreds oauth2 authorization object
 type OAuthCreds struct {
-	Token   string
-	Refresh string
-	Manager sdk.Manager
+	Token      string
+	Refresh    string
+	Manager    sdk.Manager
+	lastRetry  time.Time
+	retryMutex sync.Mutex
 }
 
 func (o *OAuthCreds) auth() string {
 	return "Bearer " + o.Token
 }
 func (o *OAuthCreds) refresh(refType string) error {
+	o.retryMutex.Lock()
+	defer o.retryMutex.Unlock()
 	token, err := o.Manager.RefreshOAuth2Token(refType, o.Refresh)
 	if err != nil {
 		return err
@@ -58,7 +63,6 @@ type API struct {
 	refType    string
 	customerID string
 	logger     sdk.Logger
-	lastRetry  time.Time
 }
 
 func New(logger sdk.Logger, client sdk.HTTPClient, creds Creds, customerID, refType string) *API {
@@ -101,13 +105,14 @@ func (a *API) get(endpoint string, params url.Values, out interface{}) (*sdk.HTT
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		if creds, ok := a.creds.(*OAuthCreds); ok {
-			if time.Since(a.lastRetry) < 1*time.Minute {
+			if time.Since(creds.lastRetry) < 1*time.Minute {
 				return nil, fmt.Errorf("error calling api. response code: %v", resp.StatusCode)
 			}
+			fmt.Println("token expired, refreshing")
 			if err := creds.refresh(a.refType); err != nil {
 				return nil, err
 			}
-			a.lastRetry = time.Now()
+			creds.lastRetry = time.Now()
 			return a.get(endpoint, params, out)
 		}
 		return nil, fmt.Errorf("error calling api. response code: %v", resp.StatusCode)

@@ -13,7 +13,9 @@ func (a *API) fetchPullRequestCommits(pr prResponse, reponame string, repoid str
 	sdk.LogDebug(a.logger, "fetching pull requests commits", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests", fmt.Sprint(pr.ID), "commits")
 	params := url.Values{}
-	params.Set("q", `updated_on > `+updated.Format(updatedFormat))
+	if !updated.IsZero() {
+		params.Set("q", `updated_on > `+updated.Format(updatedFormat))
+	}
 	params.Set("sort", "-updated_on")
 
 	out := make(chan objects)

@@ -22,7 +22,9 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 	params.Add("state", "MERGED")
 	params.Add("state", "SUPERSEDED")
 	params.Add("state", "OPEN")
-	params.Set("q", `updated_on > `+updated.Format(updatedFormat))
+	if !updated.IsZero() {
+		params.Set("q", `updated_on > `+updated.Format(updatedFormat))
+	}
 	params.Set("sort", "-updated_on")
 
 	// Greater than 50 throws "Invalid pagelen"
