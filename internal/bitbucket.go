@@ -85,20 +85,20 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	sdk.LogInfo(g.logger, "export starting", "customer", customerID)
 
 	client := g.httpClient
-	var creds api.Creds
+	var creds sdk.WithHTTPOption
 	if config.BasicAuth != nil {
 		sdk.LogInfo(g.logger, "using basic auth")
-		creds = &api.BasicCreds{
-			Username: config.BasicAuth.Username,
-			Password: config.BasicAuth.Password,
-		}
+		creds = sdk.WithBasicAuth(
+			config.BasicAuth.Username,
+			config.BasicAuth.Password,
+		)
 	} else {
 		sdk.LogInfo(g.logger, "using oauth2")
-		creds = &api.OAuthCreds{
-			Refresh: *config.OAuth2Auth.RefreshToken,
-			Token:   config.OAuth2Auth.AccessToken,
-			Manager: g.manager,
-		}
+		creds = sdk.WithOAuth2Refresh(
+			g.manager, g.refType,
+			config.OAuth2Auth.AccessToken,
+			*config.OAuth2Auth.RefreshToken,
+		)
 	}
 
 	var updated time.Time
@@ -108,7 +108,7 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 			updated, _ = time.Parse(time.RFC3339Nano, strTime)
 		}
 	}
-	a := api.New(g.logger, client, creds, customerID, g.refType)
+	a := api.New(g.logger, client, customerID, g.refType, creds)
 	teams, err := a.FetchWorkSpaces()
 	if err != nil {
 		return err
