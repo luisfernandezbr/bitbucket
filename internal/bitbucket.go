@@ -35,33 +35,13 @@ func (g *BitBucketIntegration) Start(logger sdk.Logger, config sdk.Config, manag
 // Enroll is called when a new integration instance is added
 func (g *BitBucketIntegration) Enroll(instance sdk.Instance) error {
 	sdk.LogInfo(g.logger, "enrolling agent")
-	var creds sdk.WithHTTPOption
-	config := instance.Config()
-	if config.BasicAuth == nil && config.OAuth2Auth == nil {
-		return errors.New("missing auth")
-	}
-	if config.BasicAuth != nil {
-		sdk.LogInfo(g.logger, "using basic auth")
-		creds = sdk.WithBasicAuth(
-			config.BasicAuth.Username,
-			config.BasicAuth.Password,
-		)
-	} else {
-		sdk.LogInfo(g.logger, "using oauth2")
-		creds = sdk.WithOAuth2Refresh(
-			g.manager, g.refType,
-			config.OAuth2Auth.AccessToken,
-			*config.OAuth2Auth.RefreshToken,
-		)
-	}
-
-	return g.registerWebhooks(instance.CustomerID(), instance.IntegrationID(), creds)
+	return g.registerUnregisterWebhooks(instance, true)
 }
 
 // Dismiss is called when an existing integration instance is removed
 func (g *BitBucketIntegration) Dismiss(instance sdk.Instance) error {
 	sdk.LogInfo(g.logger, "dismiss not implemented")
-	return nil
+	return g.registerUnregisterWebhooks(instance, false)
 }
 
 // Stop is called when the integration is shutting down for cleanup

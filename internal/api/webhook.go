@@ -6,9 +6,9 @@ import (
 
 const webhookName = "pinpoint_webhooks"
 
-// CreateWebHook creates a webhook, deleting existing ones if exist
-func (a *API) CreateWebHook(reponame, repoid, userid, url string, hooks []string) (string, error) {
-	if err := a.deleteExistingWebHooks(reponame); err != nil {
+// CreateWebhook creates a webhook, deleting existing ones if exist
+func (a *API) CreateWebhook(reponame, repoid, userid, url string, hooks []string) (string, error) {
+	if err := a.DeleteExistingWebhooks(reponame); err != nil {
 		return "", err
 	}
 	endpoint := sdk.JoinURL("repositories", reponame, "hooks")
@@ -30,15 +30,16 @@ func (a *API) CreateWebHook(reponame, repoid, userid, url string, hooks []string
 	return out.UUID, nil
 }
 
-// DeleteWebHook deletes a webhook
-func (a *API) DeleteWebHook(reponame, uuid string) error {
+// DeleteWebhook deletes a webhook
+func (a *API) DeleteWebhook(reponame, uuid string) error {
 	endpoint := sdk.JoinURL("repositories", reponame, "hooks", uuid)
 	var out interface{}
 	_, err := a.delete(endpoint, &out)
 	return err
 }
 
-func (a *API) deleteExistingWebHooks(reponame string) error {
+// DeleteExistingWebhooks deletes all the pinpoint webhooks
+func (a *API) DeleteExistingWebhooks(reponame string) error {
 	endpoint := sdk.JoinURL("repositories", reponame, "hooks")
 	out := make(chan objects)
 	errchan := make(chan error)
@@ -54,7 +55,7 @@ func (a *API) deleteExistingWebHooks(reponame string) error {
 			}
 			for _, wh := range resp {
 				if wh.Description == webhookName {
-					if err := a.DeleteWebHook(reponame, wh.UUID); err != nil {
+					if err := a.DeleteWebhook(reponame, wh.UUID); err != nil {
 						errchan <- err
 						return
 					}
