@@ -15,7 +15,7 @@ func (a *API) CreateWebHook(reponame, repoid, userid, url string, hooks []string
 	payload := webhookPayload{
 		Active:      true,
 		CreatorID:   "user:" + userid,
-		Description: "pinpoint_webhooks",
+		Description: webhookName,
 		Events:      hooks,
 		SubjectKey:  "repository:" + repoid,
 		URL:         url,
