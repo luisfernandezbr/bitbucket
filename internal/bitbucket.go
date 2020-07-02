@@ -27,25 +27,40 @@ func (g *BitBucketIntegration) Start(logger sdk.Logger, config sdk.Config, manag
 	g.config = config
 	g.manager = manager
 	g.refType = "bitbucket"
+	g.httpClient = g.manager.HTTPManager().New("https://api.bitbucket.org/2.0", nil)
 	sdk.LogInfo(g.logger, "starting")
 	return nil
 }
 
 // Enroll is called when a new integration instance is added
 func (g *BitBucketIntegration) Enroll(instance sdk.Instance) error {
-	sdk.LogInfo(g.logger, "enroll not implemented")
-	return nil
+	sdk.LogInfo(g.logger, "enrolling agent")
+	var creds sdk.WithHTTPOption
+	config := instance.Config()
+	if config.BasicAuth == nil && config.OAuth2Auth == nil {
+		return errors.New("missing auth")
+	}
+	if config.BasicAuth != nil {
+		sdk.LogInfo(g.logger, "using basic auth")
+		creds = sdk.WithBasicAuth(
+			config.BasicAuth.Username,
+			config.BasicAuth.Password,
+		)
+	} else {
+		sdk.LogInfo(g.logger, "using oauth2")
+		creds = sdk.WithOAuth2Refresh(
+			g.manager, g.refType,
+			config.OAuth2Auth.AccessToken,
+			*config.OAuth2Auth.RefreshToken,
+		)
+	}
+
+	return g.registerWebhooks(instance.CustomerID(), instance.IntegrationID(), creds)
 }
 
 // Dismiss is called when an existing integration instance is removed
 func (g *BitBucketIntegration) Dismiss(instance sdk.Instance) error {
 	sdk.LogInfo(g.logger, "dismiss not implemented")
-	return nil
-}
-
-// WebHook is called when a webhook is received on behalf of the integration
-func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
-	sdk.LogInfo(g.logger, "webhook not implemented")
 	return nil
 }
 
@@ -73,15 +88,20 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	if config.BasicAuth == nil && config.OAuth2Auth == nil {
 		return errors.New("missing authentication")
 	}
+
+	// temporary "fix" to create webhooks
+	// inst := sdk.NewInstance(config, state, pipe, customerID, export.IntegrationID())
+	// if err := g.Enroll(*inst); err != nil {
+	// 	return err
+	// }
+	// os.Exit(1)
+
 	hasInclusions := config.Inclusions != nil
 	hasExclusions := config.Exclusions != nil
 	accounts := config.Accounts
 	if accounts == nil {
 		sdk.LogInfo(g.logger, "no accounts configured, will do only customer's account")
 	}
-
-	g.httpClient = g.manager.HTTPManager().New("https://api.bitbucket.org/2.0", nil)
-
 	sdk.LogInfo(g.logger, "export starting", "customer", customerID)
 
 	client := g.httpClient

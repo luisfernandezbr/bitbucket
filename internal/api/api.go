@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/pinpt/agent.next/sdk"
 )
@@ -54,7 +55,21 @@ func (a *API) paginate(endpoint string, params url.Values, out chan<- objects) e
 }
 
 func (a *API) get(endpoint string, params url.Values, out interface{}) (*sdk.HTTPResponse, error) {
+	if params == nil {
+		params = url.Values{}
+	}
 	return a.client.Get(out, sdk.WithEndpoint(endpoint), sdk.WithGetQueryParameters(params), a.creds)
+}
+
+func (a *API) delete(endpoint string, out interface{}) (*sdk.HTTPResponse, error) {
+	return a.client.Delete(out, sdk.WithEndpoint(endpoint), a.creds)
+}
+
+func (a *API) post(endpoint string, data interface{}, params url.Values, out interface{}) (*sdk.HTTPResponse, error) {
+	if params == nil {
+		params = url.Values{}
+	}
+	return a.client.Post(strings.NewReader(sdk.Stringify(data)), out, sdk.WithEndpoint(endpoint), sdk.WithGetQueryParameters(params), a.creds)
 }
 
 type objects []map[string]interface{}

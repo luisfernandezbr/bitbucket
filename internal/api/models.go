@@ -514,3 +514,12 @@ type prCommitResponse struct {
 	} `json:"summary"`
 	Type string `json:"type"`
 }
+
+type webhookPayload struct {
+	Active      bool     `json:"active"`
+	CreatorID   string   `json:"creator_id"`
+	Description string   `json:"description"`
+	Events      []string `json:"events"`
+	SubjectKey  string   `json:"subject_key"`
+	URL         string   `json:"url"`
+}

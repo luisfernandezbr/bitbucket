@@ -9,6 +9,13 @@ import (
 	"github.com/pinpt/agent.next/sdk"
 )
 
+// FetchMyUser returns the uuid of the logged in user
+func (a *API) FetchMyUser() (string, error) {
+	var out userResponse
+	_, err := a.get("user", nil, &out)
+	return out.UUID, err
+}
+
 // FetchUsers gets team members
 func (a *API) FetchUsers(team string, updated time.Time, userchan chan<- *sdk.SourceCodeUser) error {
 	sdk.LogDebug(a.logger, "fetching users", "team", team)
