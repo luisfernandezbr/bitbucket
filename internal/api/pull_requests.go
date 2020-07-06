@@ -120,7 +120,7 @@ func (a *API) sendPullRequest(raw prResponse, repoid string, updated time.Time, 
 		RepoID:         sdk.NewSourceCodeRepoID(a.customerID, repoid, a.refType),
 		BranchName:     raw.Source.Branch.Name,
 		Title:          raw.Title,
-		Description:    raw.Description,
+		Description:    `<div class="source-bitbucket">` + sdk.ConvertMarkdownToHTML(raw.Description) + "</div>",
 		URL:            raw.Links.HTML.Href,
 		Identifier:     fmt.Sprintf("#%d", raw.ID), // in bitbucket looks like #1 is the format for PR identifiers in their UI
 		CreatedByRefID: raw.Author.UUID,

@@ -37,7 +37,7 @@ var webhookEvents = []string{
 
 func (g *BitBucketIntegration) registerUnregisterWebhooks(instance sdk.Instance, register bool) error {
 	customerID := instance.CustomerID()
-	integrationID := instance.IntegrationID()
+	integrationID := instance.IntegrationInstanceID()
 	var creds sdk.WithHTTPOption
 	config := instance.Config()
 	if config.BasicAuth == nil && config.OAuth2Auth == nil {

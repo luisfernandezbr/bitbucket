@@ -20,6 +20,7 @@ type API struct {
 	creds      sdk.WithHTTPOption
 }
 
+// New returns a new instance of API
 func New(logger sdk.Logger, client sdk.HTTPClient, customerID, refType string, creds sdk.WithHTTPOption) *API {
 	return &API{
 		logger:     logger,

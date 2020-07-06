@@ -2,7 +2,13 @@ module github.com/pinpt/agent.next.bitbucket
 
 go 1.14
 
-require github.com/pinpt/agent.next v0.0.0-20200629144550-ef2185e33a3a
+require (
+	github.com/go-redis/redis/v8 v8.0.0-beta.6 // indirect
+	github.com/mattn/go-colorable v0.1.7 // indirect
+	github.com/pinpt/agent.next v0.0.0-20200706123552-efe21bae7dda
+	github.com/pinpt/httpclient v0.0.0-20200627153820-d374c2f15648 // indirect
+	golang.org/x/text v0.3.3 // indirect
+)
 
 // TODO: this is only set while we're in rapid dev. once we get out of that we should remove
 replace github.com/pinpt/agent.next => ../agent.next
