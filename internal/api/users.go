@@ -34,17 +34,12 @@ func (a *API) FetchUsers(team string, updated time.Time, userchan chan<- *sdk.So
 		}
 		errchan <- nil
 	}()
-	go func() {
-		err := a.paginate(endpoint, params, out)
-		if err != nil {
-			rerr := err.(*sdk.HTTPError)
-			if rerr.StatusCode == http.StatusForbidden {
-				errchan <- nil
-			} else {
-				errchan <- fmt.Errorf("error fetching users. err %v", err)
-			}
+	if err := a.paginate(endpoint, params, out); err != nil {
+		rerr := err.(*sdk.HTTPError)
+		if rerr.StatusCode != http.StatusForbidden {
+			return fmt.Errorf("error fetching users. err %v", err)
 		}
-	}()
+	}
 	if err := <-errchan; err != nil {
 		return err
 	}

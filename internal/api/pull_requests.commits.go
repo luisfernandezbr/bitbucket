@@ -33,18 +33,15 @@ func (a *API) fetchPullRequestCommits(pr prResponse, reponame string, repoid str
 		}
 		errchan <- nil
 	}()
-	go func() {
-		if err := a.paginate(endpoint, params, out); err != nil {
-			rerr := err.(*sdk.HTTPError)
-			// not found means no commits
-			if rerr.StatusCode == http.StatusNotFound {
-				sdk.LogDebug(a.logger, "no commits found for this PR", "repo", reponame, "pr", pr.ID)
-				errchan <- nil
-			} else {
-				errchan <- fmt.Errorf("error fetching pr commits. err %v", err)
-			}
+	if err := a.paginate(endpoint, params, out); err != nil {
+		rerr := err.(*sdk.HTTPError)
+		// not found means no commits
+		if rerr.StatusCode == http.StatusNotFound {
+			sdk.LogDebug(a.logger, "no commits found for this PR", "repo", reponame, "pr", pr.ID)
+		} else {
+			return fmt.Errorf("error fetching pr commits. err %v", err)
 		}
-	}()
+	}
 	if err := <-errchan; err != nil {
 		return err
 	}

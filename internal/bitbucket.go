@@ -2,6 +2,7 @@ package internal
 
 import (
 	"errors"
+	"os"
 	"strings"
 	"time"
 
@@ -69,12 +70,11 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 		return errors.New("missing authentication")
 	}
 
-	// temporary "fix" to create webhooks
-	// inst := sdk.NewInstance(config, state, pipe, customerID, export.IntegrationID())
-	// if err := g.Enroll(*inst); err != nil {
-	// 	return err
-	// }
-	// os.Exit(1)
+	inst := sdk.NewInstance(config, state, pipe, customerID, export.IntegrationInstanceID())
+	if err := g.Enroll(*inst); err != nil {
+		return err
+	}
+	os.Exit(1)
 
 	hasInclusions := config.Inclusions != nil
 	hasExclusions := config.Exclusions != nil
