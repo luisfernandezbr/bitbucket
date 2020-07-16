@@ -9,7 +9,7 @@ import (
 	"github.com/pinpt/agent.next/sdk"
 )
 
-const webhookVersion = "1" // change this to have the webhook uninstalled and reinstalled new
+const webhookVersion = "12" // change this to have the webhook uninstalled and reinstalled new
 
 // WebHook is called when a webhook is received on behalf of the integration
 func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
@@ -131,7 +131,7 @@ func (g *BitBucketIntegration) registerWebhooks(reponame, repoid, userid, custom
 	if err != nil {
 		return err
 	}
-	if _, err = a.CreateWebHook(reponame, repoid, userid, url, webhookEvents); err != nil {
+	if err = a.CreateWebHook(reponame, repoid, userid, url, webhookEvents); err != nil {
 		return err
 	}
 	sdk.LogInfo(g.logger, "webhook created", "repo name", reponame, "url", url)

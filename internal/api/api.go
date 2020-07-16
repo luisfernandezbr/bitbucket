@@ -32,6 +32,9 @@ func New(logger sdk.Logger, client sdk.HTTPClient, customerID, refType string, c
 }
 
 func (a *API) paginate(endpoint string, params url.Values, out chan<- objects) error {
+	if params == nil {
+		params = url.Values{}
+	}
 	defer close(out)
 	var page string
 	for {
