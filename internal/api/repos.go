@@ -26,12 +26,9 @@ func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.Source
 		}
 		errchan <- nil
 	}()
-	go func() {
-		err := a.paginate(endpoint, params, out)
-		if err != nil {
-			errchan <- fmt.Errorf("error fetching repos. err %v", err)
-		}
-	}()
+	if err := a.paginate(endpoint, params, out); err != nil {
+		return fmt.Errorf("error fetching repos. err %v", err)
+	}
 	if err := <-errchan; err != nil {
 		return err
 	}

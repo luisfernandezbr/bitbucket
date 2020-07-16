@@ -8,9 +8,6 @@ const webhookName = "pinpoint_webhooks"
 
 // CreateWebHook creates a webhook, deleting existing ones if exist
 func (a *API) CreateWebHook(reponame, repoid, userid, url string, hooks []string) (string, error) {
-	if err := a.DeleteExistingWebHooks(reponame); err != nil {
-		return "", err
-	}
 	endpoint := sdk.JoinURL("repositories", reponame, "hooks")
 	payload := webhookPayload{
 		Active:      true,
@@ -64,13 +61,8 @@ func (a *API) DeleteExistingWebHooks(reponame string) error {
 		}
 		errchan <- nil
 	}()
-	go func() {
-		if err := a.paginate(endpoint, nil, out); err != nil {
-			errchan <- err
-		}
-	}()
-	if err := <-errchan; err != nil {
+	if err := a.paginate(endpoint, nil, out); err != nil {
 		return err
 	}
-	return nil
+	return <-errchan
 }

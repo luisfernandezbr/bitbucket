@@ -69,8 +69,7 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 		return errors.New("missing authentication")
 	}
 
-	// temporary "fix" to create webhooks
-	// inst := sdk.NewInstance(config, state, pipe, customerID, export.IntegrationID())
+	// inst := sdk.NewInstance(config, state, pipe, customerID, export.IntegrationInstanceID())
 	// if err := g.Enroll(*inst); err != nil {
 	// 	return err
 	// }

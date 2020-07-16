@@ -2,11 +2,14 @@ package internal
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/pinpt/agent.next.bitbucket/internal/api"
 	"github.com/pinpt/agent.next/sdk"
 )
+
+const webhookVersion = "1" // change this to have the webhook uninstalled and reinstalled new
 
 // WebHook is called when a webhook is received on behalf of the integration
 func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
@@ -38,11 +41,11 @@ var webhookEvents = []string{
 func (g *BitBucketIntegration) registerUnregisterWebhooks(instance sdk.Instance, register bool) error {
 	customerID := instance.CustomerID()
 	integrationID := instance.IntegrationInstanceID()
-	var creds sdk.WithHTTPOption
 	config := instance.Config()
 	if config.BasicAuth == nil && config.OAuth2Auth == nil {
 		return errors.New("missing auth")
 	}
+	var creds sdk.WithHTTPOption
 	if config.BasicAuth != nil {
 		sdk.LogInfo(g.logger, "using basic auth")
 		creds = sdk.WithBasicAuth(
@@ -57,12 +60,17 @@ func (g *BitBucketIntegration) registerUnregisterWebhooks(instance sdk.Instance,
 			*config.OAuth2Auth.RefreshToken,
 		)
 	}
+	var concurr int64
+	var ok bool
+	if ok, concurr = config.GetInt("concurrency"); !ok {
+		concurr = 10
+	}
 	a := api.New(g.logger, g.httpClient, customerID, g.refType, creds)
-	var uuid string
+	var userid string
 	var err error
 	if register {
 		// only needed for registering webhooks
-		uuid, err = a.FetchMyUser()
+		userid, err = a.FetchMyUser()
 		if err != nil {
 			return err
 		}
@@ -71,45 +79,72 @@ func (g *BitBucketIntegration) registerUnregisterWebhooks(instance sdk.Instance,
 	if err != nil {
 		return err
 	}
-	repochan := make(chan *sdk.SourceCodeRepo)
+	repochan := make(chan *sdk.SourceCodeRepo, concurr)
 	errchan := make(chan error)
 
+	webhookManager := g.manager.WebHookManager()
 	go func() {
 		for r := range repochan {
 			client := g.manager.HTTPManager().New("https://bitbucket.org/!api/2.0", nil)
 			a := api.New(g.logger, client, customerID, g.refType, creds)
 			if register {
-				url, err := g.manager.CreateWebHook(customerID, g.refType, integrationID, r.RefID)
-				if err != nil {
+				if err := g.registerWebhooks(r.Name, r.RefID, userid, customerID, integrationID, a, webhookManager); err != nil {
 					errchan <- err
 					return
 				}
-				// webhooks use a different endpoint
-				if _, err = a.CreateWebHook(r.Name, r.RefID, uuid, url, webhookEvents); err != nil {
-					errchan <- err
-					return
-				}
-				sdk.LogInfo(g.logger, "webhook created", "repo name", r.Name)
-				sdk.LogDebug(g.logger, "webhook created", "url", url)
 			} else {
-				if err := a.DeleteExistingWebHooks(r.Name); err != nil {
+				if err := g.unregisterWebhooks(r.Name, r.RefID, customerID, integrationID, a, webhookManager); err != nil {
 					errchan <- err
 					return
 				}
-				sdk.LogInfo(g.logger, "webhook deleted", "repo name", r.Name)
 			}
 		}
 		errchan <- nil
 	}()
-	go func() {
-		for _, team := range teams {
-			if err := a.FetchRepos(team, time.Time{}, repochan); err != nil {
-				errchan <- err
-			}
+	for _, team := range teams {
+		if err := a.FetchRepos(team, time.Time{}, repochan); err != nil {
+			return err
 		}
-		close(repochan)
-	}()
+	}
+	close(repochan)
 
-	err = <-errchan
-	return err
+	return <-errchan
+}
+
+func (g *BitBucketIntegration) registerWebhooks(reponame, repoid, userid, customerID, integrationID string, a *api.API, webhookManager sdk.WebHookManager) error {
+
+	if webhookManager.Exists(customerID, integrationID, g.refType, repoid, sdk.WebHookScopeRepo) {
+		url, err := webhookManager.HookURL(customerID, integrationID, g.refType, repoid, sdk.WebHookScopeRepo)
+		if err != nil {
+			return err
+		}
+		// check and see if we need to upgrade our webhook
+		if strings.Contains(url, "&version="+webhookVersion) {
+			sdk.LogInfo(g.logger, "skipping web hook install since already installed")
+			return nil
+		}
+		if err := g.unregisterWebhooks(reponame, repoid, customerID, integrationID, a, webhookManager); err != nil {
+			return err
+		}
+	}
+	url, err := webhookManager.Create(customerID, integrationID, g.refType, repoid, sdk.WebHookScopeRepo, "version="+webhookVersion)
+	if err != nil {
+		return err
+	}
+	if _, err = a.CreateWebHook(reponame, repoid, userid, url, webhookEvents); err != nil {
+		return err
+	}
+	sdk.LogInfo(g.logger, "webhook created", "repo name", reponame, "url", url)
+	return nil
+}
+
+func (g *BitBucketIntegration) unregisterWebhooks(reponame, repoid, customerID, integrationID string, a *api.API, webhookManager sdk.WebHookManager) error {
+	if err := webhookManager.Delete(customerID, integrationID, g.refType, repoid, sdk.WebHookScopeRepo); err != nil {
+		return err
+	}
+	if err := a.DeleteExistingWebHooks(reponame); err != nil {
+		return err
+	}
+	sdk.LogInfo(g.logger, "webhook deleted", "repo name", reponame)
+	return nil
 }

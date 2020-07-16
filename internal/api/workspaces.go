@@ -29,12 +29,10 @@ func (a *API) FetchWorkSpaces() ([]string, error) {
 		}
 		errchan <- nil
 	}()
-	go func() {
-		err := a.paginate(endpoint, params, out)
-		if err != nil {
-			errchan <- fmt.Errorf("error fetching workspaces. err %v", err)
-		}
-	}()
+	err := a.paginate(endpoint, params, out)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching workspaces. err %v", err)
+	}
 	if err := <-errchan; err != nil {
 		return nil, err
 	}

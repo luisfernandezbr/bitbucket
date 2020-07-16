@@ -33,12 +33,10 @@ func (a *API) fetchPullRequestComments(pr prResponse, reponame string, repoid st
 		}
 		errchan <- nil
 	}()
-	go func() {
-		err := a.paginate(endpoint, params, out)
-		if err != nil {
-			errchan <- fmt.Errorf("error getting pr comments. err %v", err)
-		}
-	}()
+	err := a.paginate(endpoint, params, out)
+	if err != nil {
+		return fmt.Errorf("error getting pr comments. err %v", err)
+	}
 	if err := <-errchan; err != nil {
 		return err
 	}

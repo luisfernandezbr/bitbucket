@@ -56,11 +56,9 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 		}
 		errchan <- nil
 	}()
-	go func() {
-		if err := a.paginate(endpoint, params, out); err != nil {
-			errchan <- fmt.Errorf("error fetching prs. err %v", err)
-		}
-	}()
+	if err := a.paginate(endpoint, params, out); err != nil {
+		return fmt.Errorf("error fetching prs. err %v", err)
+	}
 	if err := <-errchan; err != nil {
 		return err
 	}
