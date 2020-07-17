@@ -3,13 +3,12 @@ package api
 import (
 	"fmt"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/pinpt/agent.next/sdk"
 )
 
-func (a *API) fetchPullRequestComments(pr prResponse, reponame string, repoid string, updated time.Time, prcommentchan chan<- *sdk.SourceCodePullRequestComment) error {
+func (a *API) fetchPullRequestComments(pr PullRequestResponse, reponame string, repoid string, updated time.Time, prcommentchan chan<- *sdk.SourceCodePullRequestComment) error {
 	sdk.LogDebug(a.logger, "fetching pull requests comments", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests", fmt.Sprint(pr.ID), "comments")
 	params := url.Values{}
@@ -23,12 +22,14 @@ func (a *API) fetchPullRequestComments(pr prResponse, reponame string, repoid st
 	var count int
 	go func() {
 		for obj := range out {
-			rawResponse := []prCommentResponse{}
+			rawResponse := []PullRequestCommentResponse{}
 			if err := obj.Unmarshal(&rawResponse); err != nil {
 				errchan <- err
 				return
 			}
-			a.sendPullRequestComments(rawResponse, repoid, fmt.Sprint(pr.ID), prcommentchan)
+			for _, rcomment := range rawResponse {
+				prcommentchan <- ConvertPullRequestComment(rcomment, repoid, fmt.Sprint(pr.ID), a.customerID, a.refType)
+			}
 			count += len(rawResponse)
 		}
 		errchan <- nil
@@ -44,20 +45,20 @@ func (a *API) fetchPullRequestComments(pr prResponse, reponame string, repoid st
 	return nil
 }
 
-func (a *API) sendPullRequestComments(raw []prCommentResponse, repoid, prid string, prcommentchan chan<- *sdk.SourceCodePullRequestComment) {
-	for _, rcomment := range raw {
-		item := &sdk.SourceCodePullRequestComment{
-			CustomerID:    a.customerID,
-			RefType:       a.refType,
-			RefID:         strconv.FormatInt(rcomment.ID, 10),
-			URL:           rcomment.Links.HTML.Href,
-			RepoID:        sdk.NewSourceCodeRepoID(a.customerID, repoid, a.refType),
-			PullRequestID: sdk.NewSourceCodePullRequestID(a.customerID, prid, a.refType, repoid),
-			Body:          rcomment.Content.Raw,
-			UserRefID:     rcomment.User.UUID,
-		}
-		sdk.ConvertTimeToDateModel(rcomment.UpdatedOn, &item.UpdatedDate)
-		sdk.ConvertTimeToDateModel(rcomment.CreatedOn, &item.CreatedDate)
-		prcommentchan <- item
+// ConvertPullRequestComment converts from raw response to pinpoint object
+func ConvertPullRequestComment(raw PullRequestCommentResponse, repoid, prid, customerID, refType string) *sdk.SourceCodePullRequestComment {
+	item := &sdk.SourceCodePullRequestComment{
+		Active:        true,
+		CustomerID:    customerID,
+		RefType:       refType,
+		RefID:         fmt.Sprint(raw.ID),
+		URL:           raw.Links.HTML.Href,
+		RepoID:        sdk.NewSourceCodeRepoID(customerID, repoid, refType),
+		PullRequestID: sdk.NewSourceCodePullRequestID(customerID, prid, refType, repoid),
+		Body:          raw.Content.Raw,
+		UserRefID:     raw.User.UUID,
 	}
+	sdk.ConvertTimeToDateModel(raw.UpdatedOn, &item.UpdatedDate)
+	sdk.ConvertTimeToDateModel(raw.CreatedOn, &item.CreatedDate)
+	return item
 }
