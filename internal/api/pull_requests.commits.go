@@ -4,14 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/pinpt/agent.next/sdk"
 )
-
-var prCommitMap = map[string]string{}
-var prCommitMapMutex sync.Mutex
 
 // FetchFirstPullRequestCommit fetches the first commit in the pr
 func (a *API) FetchFirstPullRequestCommit(reponame, prid string) (string, error) {
@@ -84,11 +80,9 @@ func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, r
 func (a *API) sendPullRequestCommits(raw []prCommitResponse, repoid, prid string, prcommitchan chan<- *sdk.SourceCodePullRequestCommit) {
 
 	// we need the first id of the pr in the pr object
-	prCommitMapMutex.Lock()
-	if _, ok := prCommitMap[repoid+"."+prid]; !ok {
-		prCommitMap[repoid+"."+prid] = raw[0].Hash
+	if !a.state.Exists("prsha." + repoid + "." + prid) {
+		a.state.Set("prsha."+repoid+"."+prid, raw[0].Hash)
 	}
-	prCommitMapMutex.Unlock()
 	for _, rccommit := range raw {
 		item := &sdk.SourceCodePullRequestCommit{
 			Active:         true,

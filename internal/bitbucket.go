@@ -107,7 +107,7 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 			updated, _ = time.Parse(time.RFC3339Nano, strTime)
 		}
 	}
-	a := api.New(g.logger, client, customerID, g.refType, creds)
+	a := api.New(g.logger, client, state, customerID, g.refType, creds)
 	teams, err := a.FetchWorkSpaces()
 	if err != nil {
 		return err

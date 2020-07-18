@@ -159,6 +159,10 @@ func (a *API) sendPullRequest(raw PullRequestResponse, repoid string, updated ti
 		return
 	}
 	prid := fmt.Sprint(raw.ID)
-	firstsha := prCommitMap[repoid+"."+prid]
+	var firstsha string
+	ok, _ := a.state.Get("prsha."+repoid+"."+prid, &firstsha)
+	if !ok {
+		sdk.LogInfo(a.logger, "no first commit sha found for pr", "pr", raw.ID, "repo", repoid)
+	}
 	prchan <- a.ConvertPullRequest(raw, repoid, firstsha)
 }

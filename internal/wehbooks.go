@@ -45,6 +45,7 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 	pipe := webhook.Pipe()
 	customerID := webhook.CustomerID()
 	config := webhook.Config()
+	state := webhook.State()
 	eventname := vals.Get("event")
 
 	var creds sdk.WithHTTPOption
@@ -63,7 +64,7 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 		)
 	}
 
-	a := api.New(g.logger, g.httpClient, customerID, g.refType, creds)
+	a := api.New(g.logger, g.httpClient, state, customerID, g.refType, creds)
 
 	switch eventname {
 	case "repo:push", "repo:fork", "repo:commit_comment_created",
@@ -94,11 +95,17 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 		if err := sdk.MapToStruct(data, &raw); err != nil {
 			return err
 		}
-		sha, err := a.FetchFirstPullRequestCommit(raw.Repository.FullName, fmt.Sprint(raw.PullRequest.ID))
-		if err != nil {
-			return err
+
+		var firstsha string
+		ok, _ := state.Get("prsha."+raw.Repository.UUID+"."+fmt.Sprint(raw.PullRequest.ID), &firstsha)
+		if !ok {
+			var err error
+			firstsha, err = a.FetchFirstPullRequestCommit(raw.Repository.FullName, fmt.Sprint(raw.PullRequest.ID))
+			if err != nil {
+				return err
+			}
 		}
-		pr := a.ConvertPullRequest(raw.PullRequest, raw.Repository.UUID, sha)
+		pr := a.ConvertPullRequest(raw.PullRequest, raw.Repository.UUID, firstsha)
 		if err := pipe.Write(pr); err != nil {
 			return err
 		}
@@ -129,6 +136,7 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 func (g *BitBucketIntegration) registerUnregisterWebhooks(instance sdk.Instance, register bool) error {
 	customerID := instance.CustomerID()
 	integrationID := instance.IntegrationInstanceID()
+	state := instance.State()
 	config := instance.Config()
 	if config.BasicAuth == nil && config.OAuth2Auth == nil {
 		return errors.New("missing auth")
@@ -153,7 +161,7 @@ func (g *BitBucketIntegration) registerUnregisterWebhooks(instance sdk.Instance,
 	if ok, concurr = config.GetInt("concurrency"); !ok {
 		concurr = 10
 	}
-	a := api.New(g.logger, g.httpClient, customerID, g.refType, creds)
+	a := api.New(g.logger, g.httpClient, state, customerID, g.refType, creds)
 	var userid string
 	var err error
 	if register {
@@ -174,7 +182,7 @@ func (g *BitBucketIntegration) registerUnregisterWebhooks(instance sdk.Instance,
 	go func() {
 		for r := range repochan {
 			client := g.manager.HTTPManager().New("https://bitbucket.org/!api/2.0", nil)
-			a := api.New(g.logger, client, customerID, g.refType, creds)
+			a := api.New(g.logger, client, state, customerID, g.refType, creds)
 			if register {
 				if err := g.registerWebhooks(r.Name, r.RefID, userid, customerID, integrationID, a, webhookManager); err != nil {
 					webhookManager.Errored(customerID, integrationID, g.refType, r.RefID, sdk.WebHookScopeRepo, err)
