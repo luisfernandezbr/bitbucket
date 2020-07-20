@@ -38,6 +38,14 @@ func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.Source
 
 // ConvertRepo converts from raw response to pinpoint object
 func (a *API) ConvertRepo(raw RepoResponse) *sdk.SourceCodeRepo {
+	fmt.Println(sdk.Stringify(raw))
+	var visibility sdk.SourceCodeRepoVisibility
+	if raw.IsPrivate {
+		visibility = sdk.SourceCodeRepoVisibilityPublic
+	} else {
+		visibility = sdk.SourceCodeRepoVisibilityPrivate
+	}
+	// .Affiliation is set in the main bitbucket.go file
 	return &sdk.SourceCodeRepo{
 		Active:        true,
 		CustomerID:    a.customerID,
@@ -48,6 +56,7 @@ func (a *API) ConvertRepo(raw RepoResponse) *sdk.SourceCodeRepo {
 		RefID:         raw.UUID,
 		RefType:       a.refType,
 		URL:           raw.Links.HTML.Href,
+		Visibility:    visibility,
 	}
 }
 
