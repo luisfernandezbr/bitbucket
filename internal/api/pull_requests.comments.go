@@ -55,7 +55,7 @@ func ConvertPullRequestComment(raw PullRequestCommentResponse, repoid, prid, cus
 		URL:           raw.Links.HTML.Href,
 		RepoID:        sdk.NewSourceCodeRepoID(customerID, repoid, refType),
 		PullRequestID: sdk.NewSourceCodePullRequestID(customerID, prid, refType, repoid),
-		Body:          raw.Content.Raw,
+		Body:          `<div class="source-bitbucket">` + sdk.ConvertMarkdownToHTML(raw.Content.Raw) + "</div>",
 		UserRefID:     raw.User.UUID,
 	}
 	sdk.ConvertTimeToDateModel(raw.UpdatedOn, &item.UpdatedDate)
