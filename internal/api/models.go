@@ -1,6 +1,8 @@
 package api
 
-import "time"
+import (
+	"time"
+)
 
 type paginationResponse struct {
 	Page       int64   `json:"page"`
@@ -50,7 +52,8 @@ type workSpacesResponse struct {
 	UUID string `json:"uuid"`
 }
 
-type repoResonse struct {
+// RepoResponse repo response
+type RepoResponse struct {
 	CreatedOn   time.Time `json:"created_on"`
 	Description string    `json:"description"`
 	ForkPolicy  string    `json:"fork_policy"`
@@ -205,7 +208,8 @@ type userResponse struct {
 	Zoneinfo interface{} `json:"zoneinfo"`
 }
 
-type prResponse struct {
+// PullRequestResponse pull request response
+type PullRequestResponse struct {
 	Author struct {
 		AccountID   string `json:"account_id"`
 		DisplayName string `json:"display_name"`
@@ -376,7 +380,8 @@ type prResponse struct {
 	UpdatedOn time.Time `json:"updated_on"`
 }
 
-type prCommentResponse struct {
+// PullRequestCommentResponse pull request comment reponse
+type PullRequestCommentResponse struct {
 	Content struct {
 		HTML   string `json:"html"`
 		Markup string `json:"markup"`

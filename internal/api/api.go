@@ -14,6 +14,7 @@ const updatedFormat = "2006-01-02T15:04:05.999999999-07:00"
 // API the api object
 type API struct {
 	client     sdk.HTTPClient
+	state      sdk.State
 	refType    string
 	customerID string
 	logger     sdk.Logger
@@ -21,17 +22,21 @@ type API struct {
 }
 
 // New returns a new instance of API
-func New(logger sdk.Logger, client sdk.HTTPClient, customerID, refType string, creds sdk.WithHTTPOption) *API {
+func New(logger sdk.Logger, client sdk.HTTPClient, state sdk.State, customerID, refType string, creds sdk.WithHTTPOption) *API {
 	return &API{
 		logger:     logger,
 		client:     client,
 		customerID: customerID,
 		refType:    refType,
 		creds:      creds,
+		state:      state,
 	}
 }
 
 func (a *API) paginate(endpoint string, params url.Values, out chan<- objects) error {
+	if params == nil {
+		params = url.Values{}
+	}
 	defer close(out)
 	var page string
 	for {
@@ -81,4 +86,9 @@ func (o objects) Unmarshal(out interface{}) error {
 		return err
 	}
 	return json.Unmarshal(b, out)
+}
+
+// FirstSha returns the state key for the first commit sha of a pr
+func FirstSha(repoRefid, prRefid string) string {
+	return "prsha." + repoRefid + "." + prRefid
 }

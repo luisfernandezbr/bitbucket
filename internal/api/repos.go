@@ -17,7 +17,7 @@ func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.Source
 	errchan := make(chan error)
 	go func() {
 		for obj := range out {
-			rawRepos := []repoResonse{}
+			rawRepos := []RepoResponse{}
 			if err := obj.Unmarshal(&rawRepos); err != nil {
 				errchan <- err
 				return
@@ -36,18 +36,23 @@ func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.Source
 	return nil
 }
 
-func (a *API) sendRepos(raw []repoResonse, updated time.Time, repo chan<- *sdk.SourceCodeRepo) {
+// ConvertRepo converts from raw response to pinpoint object
+func (a *API) ConvertRepo(raw RepoResponse) *sdk.SourceCodeRepo {
+	return &sdk.SourceCodeRepo{
+		Active:        true,
+		CustomerID:    a.customerID,
+		DefaultBranch: raw.Mainbranch.Name,
+		Description:   raw.Description,
+		Language:      raw.Language,
+		Name:          raw.FullName,
+		RefID:         raw.UUID,
+		RefType:       a.refType,
+		URL:           raw.Links.HTML.Href,
+	}
+}
+
+func (a *API) sendRepos(raw []RepoResponse, updated time.Time, repo chan<- *sdk.SourceCodeRepo) {
 	for _, each := range raw {
-		repo <- &sdk.SourceCodeRepo{
-			Active:        true,
-			CustomerID:    a.customerID,
-			DefaultBranch: each.Mainbranch.Name,
-			Description:   each.Description,
-			Language:      each.Language,
-			Name:          each.FullName,
-			RefID:         each.UUID,
-			RefType:       a.refType,
-			URL:           each.Links.HTML.Href,
-		}
+		repo <- a.ConvertRepo(each)
 	}
 }

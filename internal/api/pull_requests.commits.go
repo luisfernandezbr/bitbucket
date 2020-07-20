@@ -9,7 +9,35 @@ import (
 	"github.com/pinpt/agent.next/sdk"
 )
 
-func (a *API) fetchPullRequestCommits(pr prResponse, reponame string, repoid string, updated time.Time, prcommitchan chan<- *sdk.SourceCodePullRequestCommit) error {
+// FetchFirstPullRequestCommit fetches the first commit in the pr
+func (a *API) FetchFirstPullRequestCommit(reponame, prid string) (string, error) {
+	var hash string
+	out := make(chan objects)
+	errchan := make(chan error)
+	go func() {
+		for obj := range out {
+			rawResponse := []prCommitResponse{}
+			if err := obj.Unmarshal(&rawResponse); err != nil {
+				errchan <- err
+				return
+			}
+			for _, each := range rawResponse {
+				hash = each.Hash
+			}
+		}
+		errchan <- nil
+	}()
+	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests", prid, "commits")
+	if err := a.paginate(endpoint, nil, out); err != nil {
+		return "", err
+	}
+	if err := <-errchan; err != nil {
+		return "", err
+	}
+	return hash, nil
+}
+
+func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, repoid string, updated time.Time, prcommitchan chan<- *sdk.SourceCodePullRequestCommit) error {
 	sdk.LogDebug(a.logger, "fetching pull requests commits", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests", fmt.Sprint(pr.ID), "commits")
 	params := url.Values{}
@@ -50,8 +78,15 @@ func (a *API) fetchPullRequestCommits(pr prResponse, reponame string, repoid str
 }
 
 func (a *API) sendPullRequestCommits(raw []prCommitResponse, repoid, prid string, prcommitchan chan<- *sdk.SourceCodePullRequestCommit) {
+
+	// we need the first id of the pr in the pr object
+	key := FirstSha(repoid, prid)
+	if !a.state.Exists(key) {
+		a.state.Set(key, raw[0].Hash)
+	}
 	for _, rccommit := range raw {
 		item := &sdk.SourceCodePullRequestCommit{
+			Active:         true,
 			CustomerID:     a.customerID,
 			RefType:        a.refType,
 			RefID:          rccommit.Hash,
