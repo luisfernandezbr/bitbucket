@@ -112,8 +112,10 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	if err != nil {
 		return err
 	}
+	var thirdparty []string
 	if accounts != nil {
 		for name := range *accounts {
+			thirdparty = append(thirdparty, name)
 			teams = append(teams, name)
 		}
 	}
@@ -138,6 +140,12 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 				if hasExclusions && config.Exclusions.Matches(name[0], r.Name) {
 					continue
 				}
+			}
+			team := strings.Split(r.Name, "/")[0]
+			if thirdparty != nil && inslice(team, thirdparty) {
+				r.Affiliation = sdk.SourceCodeRepoAffiliationThirdparty
+			} else {
+				r.Affiliation = sdk.SourceCodeRepoAffiliationOrganization
 			}
 			if err := pipe.Write(r); err != nil {
 				errchan <- err
@@ -243,4 +251,13 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	sdk.LogInfo(g.logger, "export finished")
 
 	return nil
+}
+
+func inslice(word string, slice []string) bool {
+	for _, w := range slice {
+		if word == w {
+			return true
+		}
+	}
+	return false
 }
