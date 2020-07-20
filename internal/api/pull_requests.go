@@ -160,7 +160,7 @@ func (a *API) sendPullRequest(raw PullRequestResponse, repoid string, updated ti
 	}
 	prid := fmt.Sprint(raw.ID)
 	var firstsha string
-	ok, _ := a.state.Get("prsha."+repoid+"."+prid, &firstsha)
+	ok, _ := a.state.Get(FirstSha(repoid, prid), &firstsha)
 	if !ok {
 		sdk.LogInfo(a.logger, "no first commit sha found for pr", "pr", raw.ID, "repo", repoid)
 	}

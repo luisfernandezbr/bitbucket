@@ -8,12 +8,15 @@ import (
 
 const webhookName = "pinpoint_webhooks"
 
+// WebHookEventName the event name string type
+type WebHookEventName string
+
 // CreateWebHook creates a webhook, deleting existing ones if exist
-func (a *API) CreateWebHook(reponame, repoid, userid, ur string, hooks []string) error {
+func (a *API) CreateWebHook(reponame, repoid, userid, ur string, hooks []WebHookEventName) error {
 	endpoint := sdk.JoinURL("repositories", reponame, "hooks")
 	async := sdk.NewAsync(10)
 	for _, _h := range hooks {
-		h := _h
+		h := string(_h)
 		u := ur
 		async.Do(func() error {
 			params := url.Values{}

@@ -87,3 +87,8 @@ func (o objects) Unmarshal(out interface{}) error {
 	}
 	return json.Unmarshal(b, out)
 }
+
+// FirstSha returns the state key for the first commit sha of a pr
+func FirstSha(repoRefid, prRefid string) string {
+	return "prsha." + repoRefid + "." + prRefid
+}

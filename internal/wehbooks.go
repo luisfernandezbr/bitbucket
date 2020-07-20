@@ -11,27 +11,52 @@ import (
 	"github.com/pinpt/agent.next/sdk"
 )
 
-const webhookVersion = "12" // change this to have the webhook uninstalled and reinstalled new
+const webhookVersion = "1" // change this to have the webhook uninstalled and reinstalled new
 
-var webhookEvents = []string{
-	"repo:push",
-	"repo:fork",
-	"repo:updated",
-	"repo:commit_comment_created",
-	"repo:commit_status_created",
-	"repo:commit_status_updated",
-	"issue:created",
-	"issue:updated",
-	"issue:comment_created",
-	"pullrequest:created",
-	"pullrequest:updated",
-	"pullrequest:approved",
-	"pullrequest:unapproved",
-	"pullrequest:fulfilled",
-	"pullrequest:rejected",
-	"pullrequest:comment_created",
-	"pullrequest:comment_updated",
-	"pullrequest:comment_deleted",
+const (
+	// webHookRepoPush                  api.WebHookEventName = "repo:push"
+	// webHookRepoFork                  api.WebHookEventName = "repo:fork"
+	webHookRepoUpdated api.WebHookEventName = "repo:updated"
+
+	// webHookRepoCommitCommentCreated  api.WebHookEventName = "repo:commit_comment_created"
+	// webHookRepoCommitStatusCreated   api.WebHookEventName = "repo:commit_status_created"
+	// webHookRepoCommitStatusUpdated   api.WebHookEventName = "repo:commit_status_updated"
+
+	// webHookIssueCreated              api.WebHookEventName = "issue:created"
+	// webHookIssueUpdated              api.WebHookEventName = "issue:updated"
+	// webHookIssueCommentCreated       api.WebHookEventName = "issue:comment_created"
+
+	webHookPullrequestCreated    api.WebHookEventName = "pullrequest:created"
+	webHookPullrequestUpdated    api.WebHookEventName = "pullrequest:updated"
+	webHookPullrequestApproved   api.WebHookEventName = "pullrequest:approved"
+	webHookPullrequestUnapproved api.WebHookEventName = "pullrequest:unapproved"
+	webHookPullrequestFulfilled  api.WebHookEventName = "pullrequest:fulfilled"
+	webHookPullrequestRejected   api.WebHookEventName = "pullrequest:rejected"
+
+	webHookPullrequestCommentCreated api.WebHookEventName = "pullrequest:comment_created"
+	webHookPullrequestCommentUpdated api.WebHookEventName = "pullrequest:comment_updated"
+	webHookPullrequestCommentDeleted api.WebHookEventName = "pullrequest:comment_deleted"
+)
+
+var webhookEvents = []api.WebHookEventName{
+	// webHookRepoPush,
+	// webHookRepoFork,
+	// webHookRepoCommitCommentCreated,
+	// webHookRepoCommitStatusCreated,
+	// webHookRepoCommitStatusUpdated,
+	// webHookIssueCreated,
+	// webHookIssueUpdated,
+	// webHookIssueCommentCreated,
+	webHookRepoUpdated,
+	webHookPullrequestCreated,
+	webHookPullrequestUpdated,
+	webHookPullrequestApproved,
+	webHookPullrequestUnapproved,
+	webHookPullrequestFulfilled,
+	webHookPullrequestRejected,
+	webHookPullrequestCommentCreated,
+	webHookPullrequestCommentUpdated,
+	webHookPullrequestCommentDeleted,
 }
 
 // WebHook is called when a webhook is received on behalf of the integration
@@ -39,15 +64,18 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 
 	vals, err := url.ParseQuery(webhook.URL())
 	if err != nil {
-		fmt.Println("ERROR", err)
+		return err
 	}
 	data, _ := webhook.Data()
 	pipe := webhook.Pipe()
 	customerID := webhook.CustomerID()
 	config := webhook.Config()
 	state := webhook.State()
-	eventname := vals.Get("event")
+	name := vals.Get("event")
 
+	if name == "" {
+		return errors.New("missing `event` from query")
+	}
 	var creds sdk.WithHTTPOption
 	if config.BasicAuth != nil {
 		sdk.LogInfo(g.logger, "using basic auth")
@@ -66,12 +94,9 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 
 	a := api.New(g.logger, g.httpClient, state, customerID, g.refType, creds)
 
+	eventname := api.WebHookEventName(name)
 	switch eventname {
-	case "repo:push", "repo:fork", "repo:commit_comment_created",
-		"repo:commit_status_created", "repo:commit_status_updated",
-		"issue:created", "issue:updated", "issue:comment_created":
-		// do nothing, not used
-	case "repo:updated":
+	case webHookRepoUpdated:
 		var raw struct {
 			Repository api.RepoResponse `json:"repository"`
 		}
@@ -83,11 +108,8 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 			return err
 		}
 
-	case "pullrequest:created",
-		"pullrequest:updated",
-		"pullrequest:approved",
-		"pullrequest:unapproved",
-		"pullrequest:rejected":
+	case webHookPullrequestCreated, webHookPullrequestUpdated, webHookPullrequestApproved,
+		webHookPullrequestUnapproved, webHookPullrequestFulfilled, webHookPullrequestRejected:
 		var raw struct {
 			PullRequest api.PullRequestResponse `json:"pullrequest"`
 			Repository  api.RepoResponse        `json:"repository"`
@@ -97,7 +119,7 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 		}
 
 		var firstsha string
-		ok, _ := state.Get("prsha."+raw.Repository.UUID+"."+fmt.Sprint(raw.PullRequest.ID), &firstsha)
+		ok, _ := state.Get(api.FirstSha(raw.Repository.UUID, fmt.Sprint(raw.PullRequest.ID)), &firstsha)
 		if !ok {
 			var err error
 			firstsha, err = a.FetchFirstPullRequestCommit(raw.Repository.FullName, fmt.Sprint(raw.PullRequest.ID))
@@ -110,9 +132,9 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 			return err
 		}
 
-	case "pullrequest:comment_created",
-		"pullrequest:comment_updated",
-		"pullrequest:comment_deleted":
+	case webHookPullrequestCommentCreated,
+		webHookPullrequestCommentUpdated,
+		webHookPullrequestCommentDeleted:
 		var raw struct {
 			PullRequest api.PullRequestResponse        `json:"pullrequest"`
 			Comment     api.PullRequestCommentResponse `json:"comment"`
@@ -122,7 +144,7 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 			return err
 		}
 		prcomment := api.ConvertPullRequestComment(raw.Comment, raw.Repository.UUID, fmt.Sprint(raw.PullRequest.ID), customerID, g.refType)
-		if eventname == "pullrequest:comment_deleted" {
+		if eventname == webHookPullrequestCommentDeleted {
 			prcomment.Active = false
 		}
 		if err := pipe.Write(prcomment); err != nil {

@@ -80,8 +80,9 @@ func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, r
 func (a *API) sendPullRequestCommits(raw []prCommitResponse, repoid, prid string, prcommitchan chan<- *sdk.SourceCodePullRequestCommit) {
 
 	// we need the first id of the pr in the pr object
-	if !a.state.Exists("prsha." + repoid + "." + prid) {
-		a.state.Set("prsha."+repoid+"."+prid, raw[0].Hash)
+	key := FirstSha(repoid, prid)
+	if !a.state.Exists(key) {
+		a.state.Set(key, raw[0].Hash)
 	}
 	for _, rccommit := range raw {
 		item := &sdk.SourceCodePullRequestCommit{
