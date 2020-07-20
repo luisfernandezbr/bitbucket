@@ -38,7 +38,6 @@ func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.Source
 
 // ConvertRepo converts from raw response to pinpoint object
 func (a *API) ConvertRepo(raw RepoResponse) *sdk.SourceCodeRepo {
-	fmt.Println(sdk.Stringify(raw))
 	var visibility sdk.SourceCodeRepoVisibility
 	if raw.IsPrivate {
 		visibility = sdk.SourceCodeRepoVisibilityPublic
