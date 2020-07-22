@@ -19,11 +19,11 @@ import {
 import styles from './styles.module.less';
 
 interface workspacesResponse {
-	is_private: Boolean,
-	name: string,
-	slug: string,
-	type: string,
-	uuid: string,
+	is_private: Boolean;
+	name: string;
+	slug: string;
+	type: string;
+	uuid: string;
 }
 
 function workspacesToAccount(workspaces: workspacesResponse[], config: Config): Account[] {
@@ -32,7 +32,7 @@ function workspacesToAccount(workspaces: workspacesResponse[], config: Config): 
 	for (var i = 0; i < workspaces.length; i++) {
 		var workspace = workspaces[i];
 		var obj: Account = {
-			avatarUrl: "",
+			avatarUrl: '',
 			totalCount: 0,
 			id: workspace.uuid,
 			name: workspace.name,
@@ -69,9 +69,9 @@ const AccountList = ({ workspaces }: { workspaces: workspacesResponse[] | undefi
 
 	return (
 		<AccountsTable
-			description="For the selected accounts, all repositories, pull requests and other data will automatically be made available in Pinpoint once installed."
+			description='For the selected accounts, all repositories, pull requests and other data will automatically be made available in Pinpoint once installed.'
 			accounts={accounts}
-			entity="repo"
+			entity='repo'
 			config={config}
 		/>
 	);
@@ -79,21 +79,21 @@ const AccountList = ({ workspaces }: { workspaces: workspacesResponse[] | undefi
 
 async function fetchWorkspaces(auth: IAppBasicAuth | IOAuth2Auth): Promise<[number, workspacesResponse[]]> {
 	return new Promise(async (resolve, reject) => {
-		var url = auth.url + "/2.0/workspaces"
+		var url = auth.url + '/2.0/workspaces'
 		var header: string;
 		if ('username' in auth) {
 			var basic = (auth as IAppBasicAuth);
-			header = "Basic " + btoa(basic.username + ":" + basic.password);
+			header = 'Basic ' + btoa(basic.username + ':' + basic.password);
 		} else {
 			var oauth = (auth as IOAuth2Auth);
-			header = "Bearer " + oauth.access_token;
+			header = 'Bearer ' + oauth.access_token;
 		}
-		var res = await Http.get(url, { "Authorization": header });
+		var res = await Http.get(url, { 'Authorization': header });
 		if (res[1] === 200) {
 			resolve([res[1], res[0].values]);
 			return;
 		}
-		reject("resoponse " + res[1]);
+		reject('resoponse ' + res[1]);
 	})
 }
 
@@ -130,7 +130,7 @@ const SelfManagedForm = ({ setWorkspaces }: { setWorkspaces: (val: workspacesRes
 			}
 		});
 	}
-	return <Form type={FormType.BASIC} name="bitbucket" callback={verify} />;
+	return <Form type={FormType.BASIC} name='bitbucket' callback={verify} />;
 };
 
 const Integration = () => {
@@ -152,7 +152,7 @@ const Integration = () => {
 				if (k === 'profile') {
 					const profile = JSON.parse(atob(decodeURIComponent(v)));
 					config.oauth2_auth = {
-						url: "https://api.bitbucket.org",
+						url: 'https://api.bitbucket.org',
 						access_token: profile.Integration.auth.accessToken,
 						refresh_token: profile.Integration.auth.refreshToken,
 						scopes: profile.Integration.auth.scopes,
@@ -180,7 +180,7 @@ const Integration = () => {
 
 	if (isFromReAuth) {
 		if (config.integration_type === IntegrationType.CLOUD) {
-			content = <OAuthConnect name="GitHub" reauth />
+			content = <OAuthConnect name='GitHub' reauth />
 		} else {
 			content = <SelfManagedForm setWorkspaces={setWorkspaces} />;
 		}
@@ -188,7 +188,7 @@ const Integration = () => {
 		if (!config.integration_type) {
 			content = <LocationSelector setType={setType} />;
 		} else if (config.integration_type === IntegrationType.CLOUD && !config.oauth2_auth) {
-			content = <OAuthConnect name="GitHub" />;
+			content = <OAuthConnect name='GitHub' />;
 		} else if (config.integration_type === IntegrationType.SELFMANAGED && !config.basic_auth && !config.apikey_auth) {
 			content = <SelfManagedForm setWorkspaces={setWorkspaces} />;
 		} else {
