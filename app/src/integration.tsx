@@ -52,7 +52,7 @@ async function fetchRepoCount(reponame: string, auth: IAppBasicAuth | IOAuth2Aut
 }
 
 const AccountList = ({ workspaces, setWorkspaces }: { workspaces: workspacesResponse[], setWorkspaces: (val: workspacesResponse[]) => void }) => {
-	const { config, setConfig } = useIntegration();
+	const { config, setConfig, installed, setInstallEnabled } = useIntegration();
 	const [accounts, setAccounts] = useState<Account[]>([]);
 	const [fetching, setFetching] = useState(false);
 
@@ -97,6 +97,9 @@ const AccountList = ({ workspaces, setWorkspaces }: { workspaces: workspacesResp
 			}
 			setConfig(config);
 			setAccounts(accounts)
+			if (!installed && accounts.length > 0) {
+				setInstallEnabled(true);
+			}
 			setFetching(false);
 		}
 		fetch();
