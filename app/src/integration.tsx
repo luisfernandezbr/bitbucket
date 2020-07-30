@@ -34,21 +34,30 @@ function createAuthHeader(auth: IAppBasicAuth | IOAuth2Auth): string {
 	var oauth = (auth as IOAuth2Auth);
 	return 'Bearer ' + oauth.access_token;
 }
-async function fetchWorkspaces(auth: IAppBasicAuth | IOAuth2Auth): Promise<[number, workspacesResponse[]]> {
-	var url = auth.url + '/2.0/workspaces';
-	var res = await Http.get(url, { 'Authorization': createAuthHeader(auth) });
-	if (res[1] === 200) {
-		return [res[1], res[0].values];
+async function fetchWorkspaces(auth: IAppBasicAuth | IOAuth2Auth): Promise<workspacesResponse[]> {
+	try {
+		var url = auth.url + '/2.0/workspaces';
+		var res = await Http.get(url, { 'Authorization': createAuthHeader(auth) });
+		console.log(res)
+		if (res[1] === 200) {
+			return res[0].values;
+		}
+		throw new Error("error fetching workspaces, response code: " + res[0]);
+	} catch (err) {
+		throw new Error("error fetching workspaces, check credentials");
 	}
-	return [res[1], []]
 }
-async function fetchRepoCount(reponame: string, auth: IAppBasicAuth | IOAuth2Auth): Promise<[number, number]> {
-	var url = auth.url + '/2.0/repositories/' + encodeURIComponent(reponame);
-	var res = await Http.get(url, { 'Authorization': createAuthHeader(auth) });
-	if (res[1] === 200) {
-		return [res[1], res[0].values.length];
+async function fetchRepoCount(reponame: string, auth: IAppBasicAuth | IOAuth2Auth): Promise<number> {
+	try {
+		var url = auth.url + '/2.0/repositories/' + encodeURIComponent(reponame);
+		var res = await Http.get(url, { 'Authorization': createAuthHeader(auth) });
+		if (res[1] === 200) {
+			return res[0].values.length;
+		}
+		throw new Error("error fetching repo count, response code: " + res[0]);
+	} catch (err) {
+		throw new Error("error fetching repo count, check credentials");
 	}
-	return [res[1], 0]
 }
 
 const AccountList = ({ workspaces, setWorkspaces }: { workspaces: workspacesResponse[], setWorkspaces: (val: workspacesResponse[]) => void }) => {
@@ -72,16 +81,12 @@ const AccountList = ({ workspaces, setWorkspaces }: { workspaces: workspacesResp
 			config.accounts = {}
 			for (var i = 0; i < workspaces.length; i++) {
 				var workspace = workspaces[i];
-				let count = 0;
+				let count: number;
 				try {
-					let res = await fetchRepoCount(workspace.slug, auth);
-					if (res[0] == 200) {
-						count = res[1];
-					} else {
-						console.error('error fetching repo count, response code', res[0]);
-					}
+					count = await fetchRepoCount(workspace.slug, auth);
 				} catch (ex) {
 					console.error('error fetching repo count', ex);
+					return
 				}
 				var obj: Account = {
 					avatarUrl: '',
@@ -110,11 +115,11 @@ const AccountList = ({ workspaces, setWorkspaces }: { workspaces: workspacesResp
 			return;
 		}
 		const fetch = async () => {
-			let res = await fetchWorkspaces(auth);
-			if (res[0] === 200) {
-				setWorkspaces(res[1]);
-			} else {
-				console.error('error fetching projects. responde code', res[0]);
+			try {
+				let res = await fetchWorkspaces(auth);
+				setWorkspaces(res);
+			} catch (err) {
+				console.error(err);
 			}
 		}
 		fetch();
@@ -147,18 +152,12 @@ const LocationSelector = ({ setType }: { setType: (val: IntegrationType) => void
 };
 
 const SelfManagedForm = ({ setWorkspaces }: { setWorkspaces: (val: workspacesResponse[]) => void }) => {
-	async function verify(auth: IAuth): Promise<boolean> {
+	async function verify(auth: IAuth) {
 		try {
 			var res = await fetchWorkspaces(auth as IAppBasicAuth);
-			if (res[0] === 200) {
-				setWorkspaces(res[1]);
-				return true;
-			}
-			console.error('error fetching workspaces, response code', res[0]);
-			return false;
+			setWorkspaces(res);
 		} catch (ex) {
-			console.error('error fetching workspaces', ex);
-			return false;
+			throw new Error(ex)
 		}
 	}
 	return <Form type={FormType.BASIC} name='bitbucket' callback={verify} />;
