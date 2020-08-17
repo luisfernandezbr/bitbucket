@@ -6,12 +6,12 @@ function App() {
 	// check to see if we are running local and need to run in simulation mode
 	if (window === window.parent && window.location.href.indexOf('localhost') > 0) {
 		const integration: Integration = {
-			name: 'BitBucket',
-			description: 'The official BitBucket integration for Pinpoint',
+			name: 'Bitbucket',
+			description: 'The official Atlassian Bitbucket integration for Pinpoint',
 			tags: ['Source Code Management', 'Issue Management'],
 			installed: false,
 			refType: 'bitbucket',
-			icon: `data:image/svg+xml,%3Csvg aria-hidden='true' focusable='false' data-prefix='fab' data-icon='bitbucket' class='svg-inline--fa fa-bitbucket fa-w-16' role='img' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='currentColor' d='M22.2 32A16 16 0 0 0 6 47.8a26.35 26.35 0 0 0 .2 2.8l67.9 412.1a21.77 21.77 0 0 0 21.3 18.2h325.7a16 16 0 0 0 16-13.4L505 50.7a16 16 0 0 0-13.2-18.3 24.58 24.58 0 0 0-2.8-.2L22.2 32zm285.9 297.8h-104l-28.1-147h157.3l-25.2 147z'%3E%3C/path%3E%3C/svg%3E`,
+			icon: `https://img.icons8.com/color/240/000000/bitbucket.png`,
 			publisher: {
 				name: 'Pinpoint',
 				avatar: 'https://avatars0.githubusercontent.com/u/24400526?s=200&v=4',

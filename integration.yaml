@@ -1,22 +1,12 @@
-name: "BitBucket"
+name: "Bitbucket"
 ref_type: "bitbucket"
-description: "This is the BitBucket integration for Pinpoint"
+description: "This is the Atlassian Bitbucket integration for Pinpoint"
+avatar_url: "https://img.icons8.com/color/240/000000/bitbucket.png"
 publisher:
   name: "Pinpoint"
   url: "https://pinpoint.com"
-  avatar_url: ""
-  identifier: "pinpt"
+  avatar_url: "https://avatars0.githubusercontent.com/u/24400526?s=200&v=4"
+  identifier: pinpt
 capabilities:
   - sourcecode.PullRequestCommit
   - sourcecode.PullRequestComment
-installation:
-  modes:
-    - cloud
-    - selfmanaged
-  cloud:
-    network:
-      hostnames:
-        - ""
-    capabilities:
-      - web.Hook
-      - auth.OAuth2

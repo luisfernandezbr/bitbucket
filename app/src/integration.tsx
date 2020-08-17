@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Icon, Loader, } from '@pinpt/uic.next';
 import {
 	useIntegration,
@@ -6,7 +6,6 @@ import {
 	AccountsTable,
 	IntegrationType,
 	OAuthConnect,
-	Graphql,
 	IAuth,
 	IAppBasicAuth,
 	Form,
@@ -26,20 +25,19 @@ interface workspacesResponse {
 }
 
 function createAuthHeader(auth: IAppBasicAuth | IOAuth2Auth): string {
-	var header: string;
 	if ('username' in auth) {
 		var basic = (auth as IAppBasicAuth);
 		return 'Basic ' + btoa(basic.username + ':' + basic.password);
 	}
-	var oauth = (auth as IOAuth2Auth);
+	const oauth = (auth as IOAuth2Auth);
 	return 'Bearer ' + oauth.access_token;
 }
+
 async function fetchWorkspaces(auth: IAppBasicAuth | IOAuth2Auth): Promise<workspacesResponse[]> {
 	try {
-		var url = auth.url + '/2.0/workspaces';
-		var res = await Http.get(url, { 'Authorization': createAuthHeader(auth) });
-		console.log(res)
-		if (res[1] === 200) {
+		const url = auth.url + '/2.0/workspaces';
+		const res = await Http.get(url, { 'Authorization': createAuthHeader(auth) });
+		if (res?.[1] === 200) {
 			return res[0].values;
 		}
 		throw new Error("error fetching workspaces, response code: " + res[0]);
@@ -47,11 +45,12 @@ async function fetchWorkspaces(auth: IAppBasicAuth | IOAuth2Auth): Promise<works
 		throw new Error("error fetching workspaces, check credentials");
 	}
 }
+
 async function fetchRepoCount(reponame: string, auth: IAppBasicAuth | IOAuth2Auth): Promise<number> {
 	try {
 		var url = auth.url + '/2.0/repositories/' + encodeURIComponent(reponame);
 		var res = await Http.get(url, { 'Authorization': createAuthHeader(auth) });
-		if (res[1] === 200) {
+		if (res?.[1] === 200) {
 			return res[0].values.length;
 		}
 		throw new Error("error fetching repo count, response code: " + res[0]);
@@ -79,8 +78,8 @@ const AccountList = ({ workspaces, setWorkspaces }: { workspaces: workspacesResp
 		setFetching(true);
 		const fetch = async () => {
 			config.accounts = {}
-			for (var i = 0; i < workspaces.length; i++) {
-				var workspace = workspaces[i];
+			for (let i = 0; i < workspaces.length; i++) {
+				const workspace = workspaces[i];
 				let count: number;
 				try {
 					count = await fetchRepoCount(workspace.slug, auth);
@@ -88,7 +87,7 @@ const AccountList = ({ workspaces, setWorkspaces }: { workspaces: workspacesResp
 					console.error('error fetching repo count', ex);
 					return
 				}
-				var obj: Account = {
+				const obj: Account = {
 					avatarUrl: '',
 					totalCount: count,
 					id: workspace.uuid,
@@ -116,7 +115,7 @@ const AccountList = ({ workspaces, setWorkspaces }: { workspaces: workspacesResp
 		}
 		const fetch = async () => {
 			try {
-				let res = await fetchWorkspaces(auth);
+				const res = await fetchWorkspaces(auth);
 				setWorkspaces(res);
 			} catch (err) {
 				console.error(err);
@@ -154,7 +153,7 @@ const LocationSelector = ({ setType }: { setType: (val: IntegrationType) => void
 const SelfManagedForm = ({ setWorkspaces }: { setWorkspaces: (val: workspacesResponse[]) => void }) => {
 	async function verify(auth: IAuth) {
 		try {
-			var res = await fetchWorkspaces(auth as IAppBasicAuth);
+			const res = await fetchWorkspaces(auth as IAppBasicAuth);
 			setWorkspaces(res);
 		} catch (ex) {
 			throw new Error(ex)
@@ -181,6 +180,7 @@ const Integration = () => {
 				if (k === 'profile') {
 					const profile = JSON.parse(atob(decodeURIComponent(v)));
 					config.oauth2_auth = {
+						date_ts: Date.now(),
 						url: 'https://api.bitbucket.org',
 						access_token: profile.Integration.auth.accessToken,
 						refresh_token: profile.Integration.auth.refreshToken,
@@ -203,7 +203,7 @@ const Integration = () => {
 	}, [type])
 
 	if (loading) {
-		return <Loader screen />;
+		return <Loader centered />;
 	}
 
 	let content;
