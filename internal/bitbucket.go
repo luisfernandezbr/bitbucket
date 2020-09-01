@@ -129,6 +129,7 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	prcommentchan := make(chan *sdk.SourceCodePullRequestComment)
 	prcommitchan := make(chan *sdk.SourceCodePullRequestCommit)
 	prreviewchan := make(chan *sdk.SourceCodePullRequestReview)
+	prreviewrequestchan := make(chan *sdk.SourceCodePullRequestReviewRequest)
 
 	// =========== repo ============
 	go func() {
@@ -153,7 +154,7 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 				errchan <- err
 				return
 			}
-			if err := a.FetchPullRequests(r.Name, r.RefID, updated, prchan, prcommentchan, prcommitchan, prreviewchan); err != nil {
+			if err := a.FetchPullRequests(r.Name, r.RefID, updated, prchan, prcommentchan, prcommitchan, prreviewchan, prreviewrequestchan); err != nil {
 				errchan <- err
 				return
 			}
@@ -209,6 +210,18 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 		}
 		sdk.LogDebug(g.logger, "finished sending reviews", "len", count)
 	}()
+	// =========== pr review request ===========
+	go func() {
+		var count int
+		for r := range prreviewrequestchan {
+			if err := pipe.Write(r); err != nil {
+				errchan <- err
+				return
+			}
+			count++
+		}
+		sdk.LogDebug(g.logger, "finished sending review requests", "len", count)
+	}()
 	// =========== user ============
 	go func() {
 		var count int
@@ -249,6 +262,7 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	close(prcommentchan)
 	close(prcommitchan)
 	close(prreviewchan)
+	close(prreviewrequestchan)
 
 	sdk.LogInfo(g.logger, "export finished")
 

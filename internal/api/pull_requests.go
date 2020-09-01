@@ -15,6 +15,7 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 	prcommentchan chan<- *sdk.SourceCodePullRequestComment,
 	prcommitchan chan<- *sdk.SourceCodePullRequestCommit,
 	prreviewchan chan<- *sdk.SourceCodePullRequestReview,
+	prreviewrequestchan chan<- *sdk.SourceCodePullRequestReviewRequest,
 ) error {
 	sdk.LogDebug(a.logger, "fetching pull requests", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests")
@@ -48,6 +49,7 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 				prcommentchan,
 				prcommitchan,
 				prreviewchan,
+				prreviewrequestchan,
 			); err != nil {
 				errchan <- err
 				return
@@ -71,6 +73,7 @@ func (a *API) processPullRequests(raw []PullRequestResponse, reponame string, re
 	prcommentchan chan<- *sdk.SourceCodePullRequestComment,
 	prcommitchan chan<- *sdk.SourceCodePullRequestCommit,
 	prreviewchan chan<- *sdk.SourceCodePullRequestReview,
+	prreviewrequestchan chan<- *sdk.SourceCodePullRequestReviewRequest,
 ) error {
 	async := sdk.NewAsync(10)
 	for _, _pr := range raw {
@@ -81,7 +84,7 @@ func (a *API) processPullRequests(raw []PullRequestResponse, reponame string, re
 		async.Do(func() error {
 			return a.fetchPullRequestCommits(pr, reponame, repoid, updated, prcommitchan)
 		})
-		a.sendPullRequestReview(pr, repoid, prreviewchan)
+		a.sendPullRequestReview(pr, repoid, prreviewchan, prreviewrequestchan)
 	}
 	if err := async.Wait(); err != nil {
 		return err
@@ -93,24 +96,34 @@ func (a *API) processPullRequests(raw []PullRequestResponse, reponame string, re
 	return nil
 }
 
-func (a *API) sendPullRequestReview(raw PullRequestResponse, repoid string, prreviewchan chan<- *sdk.SourceCodePullRequestReview) {
+func (a *API) sendPullRequestReview(raw PullRequestResponse, repoid string, prreviewchan chan<- *sdk.SourceCodePullRequestReview, prreviewrequestchan chan<- *sdk.SourceCodePullRequestReviewRequest) {
+	repoID := sdk.NewSourceCodeRepoID(a.customerID, repoid, a.refType)
+	prID := sdk.NewSourceCodePullRequestID(a.customerID, strconv.FormatInt(raw.ID, 10), a.refType, repoID)
 	for _, participant := range raw.Participants {
 		if participant.Role == "REVIEWER" {
-			review := &sdk.SourceCodePullRequestReview{
-				Active:        true,
-				CustomerID:    a.customerID,
-				PullRequestID: strconv.FormatInt(raw.ID, 10),
-				RefID:         sdk.Hash(raw.ID, participant.User.AccountID),
-				RefType:       a.refType,
-				RepoID:        sdk.NewSourceCodeRepoID(a.customerID, repoid, a.refType),
-				UserRefID:     participant.User.UUID,
-			}
 			if participant.Approved {
-				review.State = sdk.SourceCodePullRequestReviewStateApproved
-			} else {
-				review.State = sdk.SourceCodePullRequestReviewStatePending
+				prreviewchan <- &sdk.SourceCodePullRequestReview{
+					Active:        true,
+					CustomerID:    a.customerID,
+					PullRequestID: prID,
+					RefID:         sdk.Hash(raw.ID, participant.User.AccountID),
+					RefType:       a.refType,
+					RepoID:        repoID,
+					UserRefID:     participant.User.UUID,
+					State:         sdk.SourceCodePullRequestReviewStateApproved,
+				}
+			} else if participant.ParticipatedOn.IsZero() {
+				// a non-participated reviewer is counted as a request
+				prreviewrequestchan <- &sdk.SourceCodePullRequestReviewRequest{
+					Active:                 true,
+					CreatedDate:            sdk.SourceCodePullRequestReviewRequestCreatedDate(*sdk.NewDateWithTime(raw.UpdatedOn)),
+					RequestedReviewerRefID: participant.User.UUID,
+					RefType:                a.refType,
+					PullRequestID:          prID,
+					CustomerID:             a.customerID,
+					ID:                     sdk.NewSourceCodePullRequestReviewRequestID(a.customerID, a.refType, prID, participant.User.UUID),
+				}
 			}
-			prreviewchan <- review
 		}
 	}
 }
