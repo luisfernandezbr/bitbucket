@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Icon from '@pinpt/uic.next/Icon';
 import Loader from '@pinpt/uic.next/Loader';
 import ErrorPage from '@pinpt/uic.next/Error';
+import { faCloud, faServer, faExclamationCircle } from '@fortawesome/free-solid-svg-icons';
 import {
 	useIntegration,
 	Account,
@@ -9,45 +10,12 @@ import {
 	IntegrationType,
 	OAuthConnect,
 	IAuth,
-	IAppBasicAuth,
 	Form,
 	FormType,
-	Http,
-	IOAuth2Auth,
 	ConfigAccount,
 } from '@pinpt/agent.websdk';
 
 import styles from './styles.module.less';
-
-interface workspacesResponse {
-	is_private: Boolean;
-	name: string;
-	slug: string;
-	type: string;
-	uuid: string;
-}
-
-function createAuthHeader(auth: IAppBasicAuth | IOAuth2Auth): string {
-	if ('username' in auth) {
-		var basic = (auth as IAppBasicAuth);
-		return 'Basic ' + btoa(basic.username + ':' + basic.password);
-	}
-	const oauth = (auth as IOAuth2Auth);
-	return 'Bearer ' + oauth.access_token;
-}
-
-async function fetchWorkspaces(auth: IAppBasicAuth | IOAuth2Auth): Promise<workspacesResponse[]> {
-	try {
-		const url = auth.url + '/2.0/workspaces';
-		const res = await Http.get(url, { 'Authorization': createAuthHeader(auth) });
-		if (res?.[1] === 200) {
-			return res[0].values;
-		}
-		throw new Error("error fetching workspaces, response code: " + res[0]);
-	} catch (err) {
-		throw new Error("error fetching workspaces, check credentials");
-	}
-}
 
 interface validateResponse {
 	accounts: ConfigAccount[];
@@ -65,21 +33,14 @@ const toAccount = (data: ConfigAccount): Account => {
 	}
 };
 
-const AccountList = ({ workspaces, setWorkspaces }: { workspaces: workspacesResponse[], setWorkspaces: (val: workspacesResponse[]) => void }) => {
+const AccountList = ({ setError }: { setError: (error: Error | undefined) => void }) => {
 	const { config, setConfig, installed, setInstallEnabled, setValidate } = useIntegration();
 	const [accounts, setAccounts] = useState<Account[]>([]);
 	const [fetching, setFetching] = useState(false);
-	const [error, setError] = useState<Error>();
-
-	let auth: IAppBasicAuth | IOAuth2Auth;
-	if (config.basic_auth) {
-		auth = config.basic_auth as IAppBasicAuth;
-	} else {
-		auth = config.oauth2_auth as IOAuth2Auth;
-	}
+	const unmounted = useRef(false);
 
 	useEffect(() => {
-		if (fetching || accounts.length ) {
+		if (fetching || accounts.length) {
 			return
 		}
 		setFetching(true);
@@ -98,19 +59,25 @@ const AccountList = ({ workspaces, setWorkspaces }: { workspaces: workspacesResp
 					setInstallEnabled(true);
 				}
 			} catch (err) {
+				if (unmounted.current) {
+					return;
+				}
 				setError(err);
 			} finally {
+				if (unmounted.current) {
+					return;
+				}
 				setFetching(false);
 			}
 		}
 		fetch();
-	}, [workspaces]);
+		return () => {
+			unmounted.current = true;
+		}
+	}, [config]);
 
 	if (fetching) {
-		return <Loader centered style={{height: '30rem'}} />;
-	}
-	if (error) {
-		return <ErrorPage message={error.message} error={error} />;
+		return <Loader centered style={{ height: '30rem' }} />;
 	}
 	return (
 		<AccountsTable
@@ -126,35 +93,31 @@ const LocationSelector = ({ setType }: { setType: (val: IntegrationType) => void
 	return (
 		<div className={styles.Location}>
 			<div className={styles.Button} onClick={() => setType(IntegrationType.CLOUD)}>
-				<Icon icon={['fas', 'cloud']} className={styles.Icon} />
+				<Icon icon={faCloud} className={styles.Icon} />
 				I'm using the <strong>bitbucket.com</strong> cloud service to manage my data
 			</div>
 
 			<div className={styles.Button} onClick={() => setType(IntegrationType.SELFMANAGED)}>
-				<Icon icon={['fas', 'server']} className={styles.Icon} />
+				<Icon icon={faServer} className={styles.Icon} />
 				I'm using <strong>my own systems</strong> or a <strong>third-party</strong> to manage a BitBucket service
 			</div>
 		</div>
 	);
 };
 
-const SelfManagedForm = ({ setWorkspaces }: { setWorkspaces: (val: workspacesResponse[]) => void }) => {
-	async function verify(auth: IAuth) {
-		try {
-			const res = await fetchWorkspaces(auth as IAppBasicAuth);
-			setWorkspaces(res);
-		} catch (ex) {
-			throw new Error(ex)
-		}
-	}
-	return <Form type={FormType.BASIC} name='bitbucket' callback={verify} />;
+const SelfManagedForm = ({ callback }: { callback: (auth: IAuth) => Promise<void> }) => {
+	return <Form type={FormType.BASIC} name='bitbucket' callback={callback} />;
 };
+
+const isAuthError = (error: Error | undefined): boolean => {
+	return error ? error.message.indexOf('401') > 0 : false;
+}
 
 const Integration = () => {
 	const { loading, currentURL, config, isFromRedirect, isFromReAuth, setConfig } = useIntegration();
 	const [type, setType] = useState<IntegrationType | undefined>(config.integration_type);
+	const [error, setError] = useState<Error | undefined>();
 	const [, setRerender] = useState(0);
-	const [workspaces, setWorkspaces] = useState<workspacesResponse[]>([]);
 
 	// ============= OAuth 2.0 =============
 	useEffect(() => {
@@ -175,7 +138,7 @@ const Integration = () => {
 						scopes: profile.Integration.auth.scopes,
 					};
 					setConfig(config);
-					setRerender(Date.now());
+				setRerender(Date.now());
 				}
 			});
 		}
@@ -189,17 +152,25 @@ const Integration = () => {
 		}
 	}, [config, type])
 
+	const basicAuthSet = useCallback(async (auth: IAuth) => {
+		if (isAuthError(error)) {
+			setError(undefined);
+		} else {
+			setRerender(Date.now());
+		}
+	}, [setError, setRerender]);
+
 	if (loading) {
 		return <Loader centered />;
 	}
 
 	let content;
 
-	if (isFromReAuth) {
+	if (isFromReAuth || isAuthError(error)) {
 		if (config.integration_type === IntegrationType.CLOUD) {
 			content = <OAuthConnect name='BitBucket' reauth />;
 		} else {
-			content = <SelfManagedForm setWorkspaces={setWorkspaces} />;
+			content = <SelfManagedForm callback={basicAuthSet} />;
 		}
 	} else {
 		if (!config.integration_type) {
@@ -207,14 +178,19 @@ const Integration = () => {
 		} else if (config.integration_type === IntegrationType.CLOUD && !config.oauth2_auth) {
 			content = <OAuthConnect name='BitBucket' />;
 		} else if (config.integration_type === IntegrationType.SELFMANAGED && !config.basic_auth && !config.apikey_auth) {
-			content = <SelfManagedForm setWorkspaces={setWorkspaces} />;
+			content = <SelfManagedForm callback={basicAuthSet} />;
 		} else {
-			content = <AccountList workspaces={workspaces} setWorkspaces={setWorkspaces} />;
+			content = <AccountList setError={setError} />;
 		}
 	}
 
 	return (
 		<div className={styles.Wrapper}>
+			{error && (
+				<div className={styles.Error}>
+					<Icon icon={faExclamationCircle} style={{marginRight: '0.5rem'}} /> {isAuthError(error) ? 'Invalid Authorization Credentials' : error.message} 
+				</div>
+			)}
 			{content}
 		</div>
 	);
