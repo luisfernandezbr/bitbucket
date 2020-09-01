@@ -36,6 +36,12 @@ func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.Source
 	return nil
 }
 
+// FetchRepoCount will return the number of repos for a workspace
+func (a *API) FetchRepoCount(workspaceSlug string) (int64, error) {
+	endpoint := sdk.JoinURL("repositories", workspaceSlug)
+	return a.getCount(endpoint, nil)
+}
+
 // ConvertRepo converts from raw response to pinpoint object
 func (a *API) ConvertRepo(raw RepoResponse) *sdk.SourceCodeRepo {
 	var visibility sdk.SourceCodeRepoVisibility

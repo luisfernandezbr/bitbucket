@@ -60,6 +60,19 @@ func (a *API) paginate(endpoint string, params url.Values, out chan<- objects) e
 	}
 }
 
+// getCount will return the total number of records
+func (a *API) getCount(endpoint string, params url.Values) (int64, error) {
+	if params == nil {
+		params = url.Values{}
+	}
+	var res paginationResponse
+	_, err := a.get(endpoint, params, &res)
+	if err != nil {
+		return 0, err
+	}
+	return res.Size, nil
+}
+
 func (a *API) get(endpoint string, params url.Values, out interface{}) (*sdk.HTTPResponse, error) {
 	if params == nil {
 		params = url.Values{}

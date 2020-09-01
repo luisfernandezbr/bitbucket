@@ -9,11 +9,11 @@ import (
 	"github.com/pinpt/agent.next/sdk"
 )
 
-// FetchMyUser returns the uuid of the logged in user
-func (a *API) FetchMyUser() (string, error) {
-	var out userResponse
+// FetchMyUser returns the logged in user
+func (a *API) FetchMyUser() (MyUser, error) {
+	var out MyUser
 	_, err := a.get("user", nil, &out)
-	return out.UUID, err
+	return out, err
 }
 
 // FetchUsers gets team members

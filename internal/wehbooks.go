@@ -188,15 +188,17 @@ func (g *BitBucketIntegration) registerUnregisterWebhooks(instance sdk.Instance,
 	var err error
 	if register {
 		// only needed for registering webhooks
-		userid, err = a.FetchMyUser()
+		user, err := a.FetchMyUser()
 		if err != nil {
 			return err
 		}
+		userid = user.UUID
 	}
-	teams, err := a.FetchWorkSpaces()
+	workspaces, err := a.FetchWorkSpaces()
 	if err != nil {
 		return err
 	}
+	teams := api.ExtractWorkSpaceIDs(workspaces)
 	repochan := make(chan *sdk.SourceCodeRepo, concurr)
 	errchan := make(chan error)
 

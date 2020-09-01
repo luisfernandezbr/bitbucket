@@ -50,6 +50,22 @@ func (g *BitBucketIntegration) Stop() error {
 	return nil
 }
 
+func (g *BitBucketIntegration) getHTTPCredOpts(config sdk.Config) sdk.WithHTTPOption {
+	if config.BasicAuth != nil {
+		sdk.LogInfo(g.logger, "using basic auth")
+		return sdk.WithBasicAuth(
+			config.BasicAuth.Username,
+			config.BasicAuth.Password,
+		)
+	}
+	sdk.LogInfo(g.logger, "using oauth2")
+	return sdk.WithOAuth2Refresh(
+		g.manager, g.refType,
+		config.OAuth2Auth.AccessToken,
+		*config.OAuth2Auth.RefreshToken,
+	)
+}
+
 // Export is called to tell the integration to run an export
 func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	sdk.LogInfo(g.logger, "export started")
@@ -84,22 +100,7 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	sdk.LogInfo(g.logger, "export starting", "customer", customerID)
 
 	client := g.httpClient
-	var creds sdk.WithHTTPOption
-	if config.BasicAuth != nil {
-		sdk.LogInfo(g.logger, "using basic auth")
-		creds = sdk.WithBasicAuth(
-			config.BasicAuth.Username,
-			config.BasicAuth.Password,
-		)
-	} else {
-		sdk.LogInfo(g.logger, "using oauth2")
-		creds = sdk.WithOAuth2Refresh(
-			g.manager, g.refType,
-			config.OAuth2Auth.AccessToken,
-			*config.OAuth2Auth.RefreshToken,
-		)
-	}
-
+	creds := g.getHTTPCredOpts(config)
 	var updated time.Time
 	if !export.Historical() {
 		var strTime string
@@ -108,10 +109,11 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 		}
 	}
 	a := api.New(g.logger, client, state, customerID, g.refType, creds)
-	teams, err := a.FetchWorkSpaces()
+	wss, err := a.FetchWorkSpaces()
 	if err != nil {
 		return err
 	}
+	teams := api.ExtractWorkSpaceIDs(wss)
 	var thirdparty []string
 	if accounts != nil {
 		for name := range *accounts {

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Icon, Loader, } from '@pinpt/uic.next';
+import Icon from '@pinpt/uic.next/Icon';
+import Loader from '@pinpt/uic.next/Loader';
+import ErrorPage from '@pinpt/uic.next/Error';
 import {
 	useIntegration,
 	Account,
@@ -12,6 +14,7 @@ import {
 	FormType,
 	Http,
 	IOAuth2Auth,
+	ConfigAccount,
 } from '@pinpt/agent.websdk';
 
 import styles from './styles.module.less';
@@ -46,23 +49,27 @@ async function fetchWorkspaces(auth: IAppBasicAuth | IOAuth2Auth): Promise<works
 	}
 }
 
-async function fetchRepoCount(reponame: string, auth: IAppBasicAuth | IOAuth2Auth): Promise<number> {
-	try {
-		var url = auth.url + '/2.0/repositories/' + encodeURIComponent(reponame);
-		var res = await Http.get(url, { 'Authorization': createAuthHeader(auth) });
-		if (res?.[1] === 200) {
-			return res[0].values.length;
-		}
-		throw new Error("error fetching repo count, response code: " + res[0]);
-	} catch (err) {
-		throw new Error("error fetching repo count, check credentials");
-	}
+interface validateResponse {
+	accounts: ConfigAccount[];
 }
 
+const toAccount = (data: ConfigAccount): Account => {
+	return {
+		id: data.id,
+		public: data.public,
+		type: data.type,
+		avatarUrl: data.avatarUrl,
+		name: data.name || '',
+		description: data.description || '',
+		totalCount: data.totalCount || 0,
+	}
+};
+
 const AccountList = ({ workspaces, setWorkspaces }: { workspaces: workspacesResponse[], setWorkspaces: (val: workspacesResponse[]) => void }) => {
-	const { config, setConfig, installed, setInstallEnabled } = useIntegration();
+	const { config, setConfig, installed, setInstallEnabled, setValidate } = useIntegration();
 	const [accounts, setAccounts] = useState<Account[]>([]);
 	const [fetching, setFetching] = useState(false);
+	const [error, setError] = useState<Error>();
 
 	let auth: IAppBasicAuth | IOAuth2Auth;
 	if (config.basic_auth) {
@@ -72,58 +79,39 @@ const AccountList = ({ workspaces, setWorkspaces }: { workspaces: workspacesResp
 	}
 
 	useEffect(() => {
-		if (fetching || accounts.length || !workspaces.length) {
+		if (fetching || accounts.length ) {
 			return
 		}
 		setFetching(true);
 		const fetch = async () => {
-			config.accounts = {}
-			for (let i = 0; i < workspaces.length; i++) {
-				const workspace = workspaces[i];
-				let count: number;
-				try {
-					count = await fetchRepoCount(workspace.slug, auth);
-				} catch (ex) {
-					console.error('error fetching repo count', ex);
-					return
+			try {
+				config.accounts = {}
+				const res: validateResponse = await setValidate(config);
+				for (let i = 0; i < res.accounts.length; i++) {
+					const obj = toAccount(res.accounts[i]);
+					accounts.push(obj);
+					config.accounts[obj.id] = obj;
 				}
-				const obj: Account = {
-					avatarUrl: '',
-					totalCount: count,
-					id: workspace.uuid,
-					name: workspace.name,
-					description: workspace.slug,
-					type: 'ORG',
-					public: !workspace.is_private
-				};
-				accounts.push(obj);
-				config.accounts[obj.id] = obj;
+				setConfig(config);
+				setAccounts(accounts)
+				if (!installed && accounts.length > 0) {
+					setInstallEnabled(true);
+				}
+			} catch (err) {
+				setError(err);
+			} finally {
+				setFetching(false);
 			}
-			setConfig(config);
-			setAccounts(accounts)
-			if (!installed && accounts.length > 0) {
-				setInstallEnabled(true);
-			}
-			setFetching(false);
 		}
 		fetch();
 	}, [workspaces]);
 
-	useEffect(() => {
-		if (workspaces.length) {
-			return;
-		}
-		const fetch = async () => {
-			try {
-				const res = await fetchWorkspaces(auth);
-				setWorkspaces(res);
-			} catch (err) {
-				console.error(err);
-			}
-		}
-		fetch();
-	}, [config.apikey_auth, config.oauth2_auth]);
-
+	if (fetching) {
+		return <Loader centered style={{height: '30rem'}} />;
+	}
+	if (error) {
+		return <ErrorPage message={error.message} error={error} />;
+	}
 	return (
 		<AccountsTable
 			description='For the selected accounts, all repositories, pull requests and other data will automatically be made available in Pinpoint once installed.'
@@ -191,8 +179,7 @@ const Integration = () => {
 				}
 			});
 		}
-
-	}, [loading, isFromRedirect, currentURL]);
+	}, [config, loading, isFromRedirect, currentURL]);
 
 	useEffect(() => {
 		if (type) {
@@ -200,7 +187,7 @@ const Integration = () => {
 			setConfig(config);
 			setRerender(Date.now());
 		}
-	}, [type])
+	}, [config, type])
 
 	if (loading) {
 		return <Loader centered />;
