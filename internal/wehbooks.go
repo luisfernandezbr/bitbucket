@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -66,9 +67,10 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 	if err != nil {
 		return err
 	}
-	data, _ := webhook.Data()
+	data := webhook.Bytes()
 	pipe := webhook.Pipe()
 	customerID := webhook.CustomerID()
+	integrationInstanceID := webhook.IntegrationInstanceID()
 	config := webhook.Config()
 	state := webhook.State()
 	name := vals.Get("event")
@@ -92,7 +94,7 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 		)
 	}
 
-	a := api.New(g.logger, g.httpClient, state, customerID, g.refType, creds)
+	a := api.New(g.logger, g.httpClient, state, pipe, customerID, integrationInstanceID, g.refType, creds)
 
 	eventname := api.WebHookEventName(name)
 	switch eventname {
@@ -100,7 +102,7 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 		var raw struct {
 			Repository api.RepoResponse `json:"repository"`
 		}
-		if err := sdk.MapToStruct(data, &raw); err != nil {
+		if err := json.Unmarshal(data, &raw); err != nil {
 			return err
 		}
 		repo := a.ConvertRepo(raw.Repository)
@@ -114,7 +116,7 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 			PullRequest api.PullRequestResponse `json:"pullrequest"`
 			Repository  api.RepoResponse        `json:"repository"`
 		}
-		if err := sdk.MapToStruct(data, &raw); err != nil {
+		if err := json.Unmarshal(data, &raw); err != nil {
 			return err
 		}
 
@@ -132,6 +134,10 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 			return err
 		}
 
+		if err := a.ExtractPullRequestReview(raw.PullRequest, pr.RepoID); err != nil {
+			return fmt.Errorf("error getting reviews: %w", err)
+		}
+
 	case webHookPullrequestCommentCreated,
 		webHookPullrequestCommentUpdated,
 		webHookPullrequestCommentDeleted:
@@ -140,10 +146,10 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 			Comment     api.PullRequestCommentResponse `json:"comment"`
 			Repository  api.RepoResponse               `json:"repository"`
 		}
-		if err := sdk.MapToStruct(data, &raw); err != nil {
+		if err := json.Unmarshal(data, &raw); err != nil {
 			return err
 		}
-		prcomment := api.ConvertPullRequestComment(raw.Comment, raw.Repository.UUID, fmt.Sprint(raw.PullRequest.ID), customerID, g.refType)
+		prcomment := api.ConvertPullRequestComment(raw.Comment, raw.Repository.UUID, fmt.Sprint(raw.PullRequest.ID), customerID, integrationInstanceID, g.refType)
 		if eventname == webHookPullrequestCommentDeleted {
 			prcomment.Active = false
 		}
@@ -159,6 +165,7 @@ func (g *BitBucketIntegration) registerUnregisterWebhooks(instance sdk.Instance,
 	customerID := instance.CustomerID()
 	integrationID := instance.IntegrationInstanceID()
 	state := instance.State()
+	pipe := instance.Pipe()
 	config := instance.Config()
 	if config.BasicAuth == nil && config.OAuth2Auth == nil {
 		return errors.New("missing auth")
@@ -183,7 +190,7 @@ func (g *BitBucketIntegration) registerUnregisterWebhooks(instance sdk.Instance,
 	if ok, concurr = config.GetInt("concurrency"); !ok {
 		concurr = 10
 	}
-	a := api.New(g.logger, g.httpClient, state, customerID, g.refType, creds)
+	a := api.New(g.logger, g.httpClient, state, pipe, customerID, integrationID, g.refType, creds)
 	var userid string
 	var err error
 	if register {
@@ -206,7 +213,7 @@ func (g *BitBucketIntegration) registerUnregisterWebhooks(instance sdk.Instance,
 	go func() {
 		for r := range repochan {
 			client := g.manager.HTTPManager().New("https://bitbucket.org/!api/2.0", nil)
-			a := api.New(g.logger, client, state, customerID, g.refType, creds)
+			a := api.New(g.logger, client, state, pipe, customerID, integrationID, g.refType, creds)
 			if register {
 				if err := g.registerWebhooks(r.Name, r.RefID, userid, customerID, integrationID, a, webhookManager); err != nil {
 					webhookManager.Errored(customerID, integrationID, g.refType, r.RefID, sdk.WebHookScopeRepo, err)

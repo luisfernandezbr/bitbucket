@@ -11,8 +11,8 @@ import (
 func (g *BitBucketIntegration) Validate(validate sdk.Validate) (map[string]interface{}, error) {
 	config := validate.Config()
 	sdk.LogInfo(g.logger, "validate", "customer_id", validate.CustomerID())
-	// FIXME(robin): make api okay with nil state
-	a := api.New(g.logger, g.httpClient, nil, validate.CustomerID(), g.refType, g.getHTTPCredOpts(config))
+	// FIXME(robin): make api okay with nil state/pipe
+	a := api.New(g.logger, g.httpClient, nil, nil, validate.CustomerID(), validate.IntegrationInstanceID(), g.refType, g.getHTTPCredOpts(config))
 	workspaces, err := a.FetchWorkSpaces()
 	if err != nil {
 		return nil, fmt.Errorf("error fetching user workspaces: %w", err)

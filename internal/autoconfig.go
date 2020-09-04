@@ -53,7 +53,7 @@ func (g *BitBucketIntegration) AutoConfigure(autoconfig sdk.AutoConfigure) (*sdk
 		return nil, errors.New("no config scope given for autoconfig")
 	}
 	sdk.LogInfo(g.logger, "autoconfiguring", "scope", config.Scope, "customer_id", autoconfig.CustomerID())
-	a := api.New(g.logger, g.httpClient, autoconfig.State(), autoconfig.CustomerID(), g.refType, g.getHTTPCredOpts(config))
+	a := api.New(g.logger, g.httpClient, autoconfig.State(), autoconfig.Pipe(), autoconfig.CustomerID(), autoconfig.IntegrationInstanceID(), g.refType, g.getHTTPCredOpts(config))
 	workspaces, err := a.FetchWorkSpaces()
 	if err != nil {
 		return nil, fmt.Errorf("error fetching user workspaces: %w", err)

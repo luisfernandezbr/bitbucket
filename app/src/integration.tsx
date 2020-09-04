@@ -138,7 +138,7 @@ const Integration = () => {
 						scopes: profile.Integration.auth.scopes,
 					};
 					setConfig(config);
-				setRerender(Date.now());
+					setRerender(Date.now());
 				}
 			});
 		}

@@ -52,16 +52,17 @@ func (a *API) ConvertRepo(raw RepoResponse) *sdk.SourceCodeRepo {
 	}
 	// .Affiliation is set in the main bitbucket.go file
 	return &sdk.SourceCodeRepo{
-		Active:        true,
-		CustomerID:    a.customerID,
-		DefaultBranch: raw.Mainbranch.Name,
-		Description:   raw.Description,
-		Language:      raw.Language,
-		Name:          raw.FullName,
-		RefID:         raw.UUID,
-		RefType:       a.refType,
-		URL:           raw.Links.HTML.Href,
-		Visibility:    visibility,
+		Active:                true,
+		CustomerID:            a.customerID,
+		DefaultBranch:         raw.Mainbranch.Name,
+		Description:           raw.Description,
+		Language:              raw.Language,
+		Name:                  raw.FullName,
+		RefID:                 raw.UUID,
+		RefType:               a.refType,
+		URL:                   raw.Links.HTML.Href,
+		Visibility:            visibility,
+		IntegrationInstanceID: sdk.StringPointer(a.integrationInstanceID),
 	}
 }
 
