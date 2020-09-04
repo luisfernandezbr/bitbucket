@@ -8,24 +8,24 @@ import (
 )
 
 // FetchWorkSpaces returns all workspaces
-func (a *API) FetchWorkSpaces() ([]string, error) {
+func (a *API) FetchWorkSpaces() ([]WorkSpacesResponse, error) {
 	sdk.LogDebug(a.logger, "fetching workspaces")
 	endpoint := "workspaces"
 	params := url.Values{}
 	params.Set("pagelen", "100")
 	params.Set("role", "member")
 
-	var ids []string
+	var workspaces []WorkSpacesResponse
 	out := make(chan objects)
 	errchan := make(chan error, 1)
 	go func() {
 		for obj := range out {
-			res := []workSpacesResponse{}
+			res := []WorkSpacesResponse{}
 			if err := obj.Unmarshal(&res); err != nil {
 				errchan <- err
 				return
 			}
-			ids = append(ids, workSpaceIDs(res)...)
+			workspaces = append(workspaces, res...)
 		}
 		errchan <- nil
 	}()
@@ -37,10 +37,11 @@ func (a *API) FetchWorkSpaces() ([]string, error) {
 		return nil, err
 	}
 	sdk.LogDebug(a.logger, "finished fetching workspaces")
-	return ids, nil
+	return workspaces, nil
 }
 
-func workSpaceIDs(ws []workSpacesResponse) []string {
+// ExtractWorkSpaceIDs will return just the slugs of the give workspaces
+func ExtractWorkSpaceIDs(ws []WorkSpacesResponse) []string {
 	var ids []string
 	for _, w := range ws {
 		ids = append(ids, w.Slug)

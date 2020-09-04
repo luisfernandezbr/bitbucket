@@ -40,7 +40,7 @@ func (g *BitBucketIntegration) Enroll(instance sdk.Instance) error {
 
 // Dismiss is called when an existing integration instance is removed
 func (g *BitBucketIntegration) Dismiss(instance sdk.Instance) error {
-	sdk.LogInfo(g.logger, "dismiss not implemented")
+	sdk.LogInfo(g.logger, "dismissing webhooks")
 	return g.registerUnregisterWebhooks(instance, false)
 }
 
@@ -48,6 +48,22 @@ func (g *BitBucketIntegration) Dismiss(instance sdk.Instance) error {
 func (g *BitBucketIntegration) Stop() error {
 	sdk.LogInfo(g.logger, "stopping")
 	return nil
+}
+
+func (g *BitBucketIntegration) getHTTPCredOpts(config sdk.Config) sdk.WithHTTPOption {
+	if config.BasicAuth != nil {
+		sdk.LogInfo(g.logger, "using basic auth")
+		return sdk.WithBasicAuth(
+			config.BasicAuth.Username,
+			config.BasicAuth.Password,
+		)
+	}
+	sdk.LogInfo(g.logger, "using oauth2")
+	return sdk.WithOAuth2Refresh(
+		g.manager, g.refType,
+		config.OAuth2Auth.AccessToken,
+		*config.OAuth2Auth.RefreshToken,
+	)
 }
 
 // Export is called to tell the integration to run an export
@@ -84,22 +100,7 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	sdk.LogInfo(g.logger, "export starting", "customer", customerID)
 
 	client := g.httpClient
-	var creds sdk.WithHTTPOption
-	if config.BasicAuth != nil {
-		sdk.LogInfo(g.logger, "using basic auth")
-		creds = sdk.WithBasicAuth(
-			config.BasicAuth.Username,
-			config.BasicAuth.Password,
-		)
-	} else {
-		sdk.LogInfo(g.logger, "using oauth2")
-		creds = sdk.WithOAuth2Refresh(
-			g.manager, g.refType,
-			config.OAuth2Auth.AccessToken,
-			*config.OAuth2Auth.RefreshToken,
-		)
-	}
-
+	creds := g.getHTTPCredOpts(config)
 	var updated time.Time
 	if !export.Historical() {
 		var strTime string
@@ -107,11 +108,12 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 			updated, _ = time.Parse(time.RFC3339Nano, strTime)
 		}
 	}
-	a := api.New(g.logger, client, state, customerID, g.refType, creds)
-	teams, err := a.FetchWorkSpaces()
+	a := api.New(g.logger, client, state, pipe, customerID, export.IntegrationInstanceID(), g.refType, creds)
+	wss, err := a.FetchWorkSpaces()
 	if err != nil {
 		return err
 	}
+	teams := api.ExtractWorkSpaceIDs(wss)
 	var thirdparty []string
 	if accounts != nil {
 		for name := range *accounts {
@@ -122,11 +124,6 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 
 	errchan := make(chan error)
 	repochan := make(chan *sdk.SourceCodeRepo)
-	userchan := make(chan *sdk.SourceCodeUser)
-	prchan := make(chan *sdk.SourceCodePullRequest)
-	prcommentchan := make(chan *sdk.SourceCodePullRequestComment)
-	prcommitchan := make(chan *sdk.SourceCodePullRequestCommit)
-	prreviewchan := make(chan *sdk.SourceCodePullRequestReview)
 
 	// =========== repo ============
 	go func() {
@@ -151,73 +148,13 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 				errchan <- err
 				return
 			}
-			if err := a.FetchPullRequests(r.Name, r.RefID, updated, prchan, prcommentchan, prcommitchan, prreviewchan); err != nil {
+			if err := a.FetchPullRequests(r.Name, r.RefID, updated); err != nil {
 				errchan <- err
 				return
 			}
 			count++
 		}
 		sdk.LogDebug(g.logger, "finished sending repos", "len", count)
-	}()
-	// =========== prs ============
-	go func() {
-		var count int
-		for r := range prchan {
-			if err := pipe.Write(r); err != nil {
-				errchan <- err
-				return
-			}
-			count++
-		}
-		sdk.LogDebug(g.logger, "finished sending prs", "len", count)
-	}()
-	// =========== pr comment ============
-	go func() {
-		var count int
-		for r := range prcommentchan {
-			if err := pipe.Write(r); err != nil {
-				errchan <- err
-				return
-			}
-			count++
-		}
-		sdk.LogDebug(g.logger, "finished sending pr comments", "len", count)
-	}()
-	// =========== pr commit ============
-	go func() {
-		var count int
-		for r := range prcommitchan {
-			if err := pipe.Write(r); err != nil {
-				errchan <- err
-				return
-			}
-			count++
-		}
-		sdk.LogDebug(g.logger, "finished sending commits", "len", count)
-	}()
-	// =========== pr review ============
-	go func() {
-		var count int
-		for r := range prreviewchan {
-			if err := pipe.Write(r); err != nil {
-				errchan <- err
-				return
-			}
-			count++
-		}
-		sdk.LogDebug(g.logger, "finished sending reviews", "len", count)
-	}()
-	// =========== user ============
-	go func() {
-		var count int
-		for r := range userchan {
-			if err := pipe.Write(r); err != nil {
-				errchan <- err
-				return
-			}
-			count++
-		}
-		sdk.LogDebug(g.logger, "finished sending users", "len", count)
 	}()
 	go func() {
 		for _, team := range teams {
@@ -226,7 +163,7 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 				errchan <- err
 				return
 			}
-			if err := a.FetchUsers(team, updated, userchan); err != nil {
+			if err := a.FetchUsers(team, updated); err != nil {
 				sdk.LogError(g.logger, "error fetching repos", "err", err)
 				errchan <- err
 				return
@@ -242,11 +179,6 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	state.Set("updated", time.Now().Format(time.RFC3339Nano))
 
 	close(repochan)
-	close(userchan)
-	close(prchan)
-	close(prcommentchan)
-	close(prcommitchan)
-	close(prreviewchan)
 
 	sdk.LogInfo(g.logger, "export finished")
 

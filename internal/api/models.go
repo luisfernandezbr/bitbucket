@@ -17,7 +17,8 @@ type linkResponse struct {
 	Name string `json:"name"`
 }
 
-type workSpacesResponse struct {
+// WorkSpacesResponse is a record returned from the workspaces api
+type WorkSpacesResponse struct {
 	CreatedOn time.Time `json:"created_on"`
 	IsPrivate bool      `json:"is_private"`
 	Links     struct {
@@ -206,6 +207,17 @@ type userResponse struct {
 	Type     string      `json:"type"`
 	UUID     string      `json:"uuid"`
 	Zoneinfo interface{} `json:"zoneinfo"`
+}
+
+// MyUser is an attlassian user with personal info
+type MyUser struct {
+	AccountID     string    `json:"account_id"`
+	AccountStatus string    `json:"account_status"`
+	CreatedOn     time.Time `json:"created_on"`
+	DisplayName   string    `json:"display_name"`
+	Nickname      string    `json:"nickname"`
+	Type          string    `json:"type"`
+	UUID          string    `json:"uuid"`
 }
 
 // PullRequestResponse pull request response

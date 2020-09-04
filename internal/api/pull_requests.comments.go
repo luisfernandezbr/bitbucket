@@ -8,7 +8,7 @@ import (
 	"github.com/pinpt/agent.next/sdk"
 )
 
-func (a *API) fetchPullRequestComments(pr PullRequestResponse, reponame string, repoid string, updated time.Time, prcommentchan chan<- *sdk.SourceCodePullRequestComment) error {
+func (a *API) fetchPullRequestComments(pr PullRequestResponse, reponame string, repoid string, updated time.Time) error {
 	sdk.LogDebug(a.logger, "fetching pull requests comments", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests", fmt.Sprint(pr.ID), "comments")
 	params := url.Values{}
@@ -28,7 +28,10 @@ func (a *API) fetchPullRequestComments(pr PullRequestResponse, reponame string, 
 				return
 			}
 			for _, rcomment := range rawResponse {
-				prcommentchan <- ConvertPullRequestComment(rcomment, repoid, fmt.Sprint(pr.ID), a.customerID, a.refType)
+				if err := a.pipe.Write(ConvertPullRequestComment(rcomment, repoid, fmt.Sprint(pr.ID), a.customerID, a.integrationInstanceID, a.refType)); err != nil {
+					errchan <- fmt.Errorf("error writing pr comment to pipe: %w", err)
+					return
+				}
 			}
 			count += len(rawResponse)
 		}
@@ -46,17 +49,18 @@ func (a *API) fetchPullRequestComments(pr PullRequestResponse, reponame string, 
 }
 
 // ConvertPullRequestComment converts from raw response to pinpoint object
-func ConvertPullRequestComment(raw PullRequestCommentResponse, repoid, prid, customerID, refType string) *sdk.SourceCodePullRequestComment {
+func ConvertPullRequestComment(raw PullRequestCommentResponse, repoid, prid, customerID, integrationInstanceID, refType string) *sdk.SourceCodePullRequestComment {
 	item := &sdk.SourceCodePullRequestComment{
-		Active:        true,
-		CustomerID:    customerID,
-		RefType:       refType,
-		RefID:         fmt.Sprint(raw.ID),
-		URL:           raw.Links.HTML.Href,
-		RepoID:        sdk.NewSourceCodeRepoID(customerID, repoid, refType),
-		PullRequestID: sdk.NewSourceCodePullRequestID(customerID, prid, refType, repoid),
-		Body:          `<div class="source-bitbucket">` + sdk.ConvertMarkdownToHTML(raw.Content.Raw) + "</div>",
-		UserRefID:     raw.User.UUID,
+		Active:                true,
+		CustomerID:            customerID,
+		RefType:               refType,
+		IntegrationInstanceID: sdk.StringPointer(integrationInstanceID),
+		RefID:                 fmt.Sprint(raw.ID),
+		URL:                   raw.Links.HTML.Href,
+		RepoID:                sdk.NewSourceCodeRepoID(customerID, repoid, refType),
+		PullRequestID:         sdk.NewSourceCodePullRequestID(customerID, prid, refType, repoid),
+		Body:                  `<div class="source-bitbucket">` + sdk.ConvertMarkdownToHTML(raw.Content.Raw) + "</div>",
+		UserRefID:             raw.User.UUID,
 	}
 	sdk.ConvertTimeToDateModel(raw.UpdatedOn, &item.UpdatedDate)
 	sdk.ConvertTimeToDateModel(raw.CreatedOn, &item.CreatedDate)

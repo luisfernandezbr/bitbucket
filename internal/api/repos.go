@@ -36,6 +36,12 @@ func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.Source
 	return nil
 }
 
+// FetchRepoCount will return the number of repos for a workspace
+func (a *API) FetchRepoCount(workspaceSlug string) (int64, error) {
+	endpoint := sdk.JoinURL("repositories", workspaceSlug)
+	return a.getCount(endpoint, nil)
+}
+
 // ConvertRepo converts from raw response to pinpoint object
 func (a *API) ConvertRepo(raw RepoResponse) *sdk.SourceCodeRepo {
 	var visibility sdk.SourceCodeRepoVisibility
@@ -46,16 +52,17 @@ func (a *API) ConvertRepo(raw RepoResponse) *sdk.SourceCodeRepo {
 	}
 	// .Affiliation is set in the main bitbucket.go file
 	return &sdk.SourceCodeRepo{
-		Active:        true,
-		CustomerID:    a.customerID,
-		DefaultBranch: raw.Mainbranch.Name,
-		Description:   raw.Description,
-		Language:      raw.Language,
-		Name:          raw.FullName,
-		RefID:         raw.UUID,
-		RefType:       a.refType,
-		URL:           raw.Links.HTML.Href,
-		Visibility:    visibility,
+		Active:                true,
+		CustomerID:            a.customerID,
+		DefaultBranch:         raw.Mainbranch.Name,
+		Description:           raw.Description,
+		Language:              raw.Language,
+		Name:                  raw.FullName,
+		RefID:                 raw.UUID,
+		RefType:               a.refType,
+		URL:                   raw.Links.HTML.Href,
+		Visibility:            visibility,
+		IntegrationInstanceID: sdk.StringPointer(a.integrationInstanceID),
 	}
 }
 

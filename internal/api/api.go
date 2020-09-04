@@ -13,23 +13,27 @@ const updatedFormat = "2006-01-02T15:04:05.999999999-07:00"
 
 // API the api object
 type API struct {
-	client     sdk.HTTPClient
-	state      sdk.State
-	refType    string
-	customerID string
-	logger     sdk.Logger
-	creds      sdk.WithHTTPOption
+	client                sdk.HTTPClient
+	state                 sdk.State
+	refType               string
+	customerID            string
+	integrationInstanceID string
+	logger                sdk.Logger
+	creds                 sdk.WithHTTPOption
+	pipe                  sdk.Pipe
 }
 
 // New returns a new instance of API
-func New(logger sdk.Logger, client sdk.HTTPClient, state sdk.State, customerID, refType string, creds sdk.WithHTTPOption) *API {
+func New(logger sdk.Logger, client sdk.HTTPClient, state sdk.State, pipe sdk.Pipe, customerID, integrationInstanceID, refType string, creds sdk.WithHTTPOption) *API {
 	return &API{
-		logger:     logger,
-		client:     client,
-		customerID: customerID,
-		refType:    refType,
-		creds:      creds,
-		state:      state,
+		logger:                logger,
+		client:                client,
+		customerID:            customerID,
+		integrationInstanceID: integrationInstanceID,
+		refType:               refType,
+		creds:                 creds,
+		state:                 state,
+		pipe:                  pipe,
 	}
 }
 
@@ -58,6 +62,19 @@ func (a *API) paginate(endpoint string, params url.Values, out chan<- objects) e
 			return fmt.Errorf("no `page` in next. %v", u.String())
 		}
 	}
+}
+
+// getCount will return the total number of records
+func (a *API) getCount(endpoint string, params url.Values) (int64, error) {
+	if params == nil {
+		params = url.Values{}
+	}
+	var res paginationResponse
+	_, err := a.get(endpoint, params, &res)
+	if err != nil {
+		return 0, err
+	}
+	return res.Size, nil
 }
 
 func (a *API) get(endpoint string, params url.Values, out interface{}) (*sdk.HTTPResponse, error) {

@@ -9,15 +9,15 @@ import (
 	"github.com/pinpt/agent.next/sdk"
 )
 
-// FetchMyUser returns the uuid of the logged in user
-func (a *API) FetchMyUser() (string, error) {
-	var out userResponse
+// FetchMyUser returns the logged in user
+func (a *API) FetchMyUser() (MyUser, error) {
+	var out MyUser
 	_, err := a.get("user", nil, &out)
-	return out.UUID, err
+	return out, err
 }
 
 // FetchUsers gets team members
-func (a *API) FetchUsers(team string, updated time.Time, userchan chan<- *sdk.SourceCodeUser) error {
+func (a *API) FetchUsers(team string, updated time.Time) error {
 	sdk.LogDebug(a.logger, "fetching users", "team", team)
 	endpoint := sdk.JoinURL("workspaces", team, "members")
 	params := url.Values{}
@@ -30,7 +30,10 @@ func (a *API) FetchUsers(team string, updated time.Time, userchan chan<- *sdk.So
 				errchan <- err
 				return
 			}
-			a.sendUsers(rawUsers, updated, userchan)
+			if err := a.sendUsers(rawUsers, updated); err != nil {
+				errchan <- err
+				return
+			}
 		}
 		errchan <- nil
 	}()
@@ -47,7 +50,7 @@ func (a *API) FetchUsers(team string, updated time.Time, userchan chan<- *sdk.So
 	return nil
 }
 
-func (a *API) sendUsers(raw []userResponse, updated time.Time, userchan chan<- *sdk.SourceCodeUser) {
+func (a *API) sendUsers(raw []userResponse, updated time.Time) error {
 	for _, each := range raw {
 		var usertype sdk.SourceCodeUserType
 		if each.Type == "user" {
@@ -55,15 +58,19 @@ func (a *API) sendUsers(raw []userResponse, updated time.Time, userchan chan<- *
 		} else {
 			usertype = sdk.SourceCodeUserTypeBot
 		}
-		userchan <- &sdk.SourceCodeUser{
-			AvatarURL:  sdk.StringPointer(each.Links.Avatar.Href),
-			CustomerID: a.customerID,
-			RefID:      each.UUID,
-			RefType:    a.refType,
-			Member:     true,
-			Name:       each.DisplayName,
-			Type:       usertype,
-			URL:        sdk.StringPointer(each.Links.HTML.Href),
+		if err := a.pipe.Write(&sdk.SourceCodeUser{
+			AvatarURL:             sdk.StringPointer(each.Links.Avatar.Href),
+			CustomerID:            a.customerID,
+			RefID:                 each.UUID,
+			RefType:               a.refType,
+			Member:                true,
+			Name:                  each.DisplayName,
+			Type:                  usertype,
+			URL:                   sdk.StringPointer(each.Links.HTML.Href),
+			IntegrationInstanceID: sdk.StringPointer(a.integrationInstanceID),
+		}); err != nil {
+			return fmt.Errorf("error sending user to pipe: %w", err)
 		}
 	}
+	return nil
 }

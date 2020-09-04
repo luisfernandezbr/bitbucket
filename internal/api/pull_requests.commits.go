@@ -37,7 +37,7 @@ func (a *API) FetchFirstPullRequestCommit(reponame, prid string) (string, error)
 	return hash, nil
 }
 
-func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, repoid string, updated time.Time, prcommitchan chan<- *sdk.SourceCodePullRequestCommit) error {
+func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, repoid string, updated time.Time) error {
 	sdk.LogDebug(a.logger, "fetching pull requests commits", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests", fmt.Sprint(pr.ID), "commits")
 	params := url.Values{}
@@ -56,7 +56,7 @@ func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, r
 				errchan <- err
 				return
 			}
-			a.sendPullRequestCommits(rawResponse, repoid, fmt.Sprint(pr.ID), prcommitchan)
+			a.sendPullRequestCommits(rawResponse, repoid, fmt.Sprint(pr.ID))
 			count += len(rawResponse)
 		}
 		errchan <- nil
@@ -77,28 +77,34 @@ func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, r
 	return nil
 }
 
-func (a *API) sendPullRequestCommits(raw []prCommitResponse, repoid, prid string, prcommitchan chan<- *sdk.SourceCodePullRequestCommit) {
+func (a *API) sendPullRequestCommits(raw []prCommitResponse, repoid, prid string) error {
 
 	// we need the first id of the pr in the pr object
 	key := FirstSha(repoid, prid)
 	if !a.state.Exists(key) {
-		a.state.Set(key, raw[0].Hash)
+		if err := a.state.Set(key, raw[0].Hash); err != nil {
+			return fmt.Errorf("error setting first commit sha: %w", err)
+		}
 	}
 	for _, rccommit := range raw {
 		item := &sdk.SourceCodePullRequestCommit{
-			Active:         true,
-			CustomerID:     a.customerID,
-			RefType:        a.refType,
-			RefID:          rccommit.Hash,
-			URL:            rccommit.Links.HTML.Href,
-			RepoID:         sdk.NewSourceCodeRepoID(a.customerID, repoid, a.refType),
-			PullRequestID:  sdk.NewSourceCodePullRequestID(a.customerID, prid, a.refType, repoid),
-			Sha:            rccommit.Hash,
-			Message:        rccommit.Message,
-			AuthorRefID:    rccommit.Author.User.UUID,
-			CommitterRefID: rccommit.Author.User.UUID,
+			Active:                true,
+			CustomerID:            a.customerID,
+			RefType:               a.refType,
+			RefID:                 rccommit.Hash,
+			URL:                   rccommit.Links.HTML.Href,
+			RepoID:                sdk.NewSourceCodeRepoID(a.customerID, repoid, a.refType),
+			PullRequestID:         sdk.NewSourceCodePullRequestID(a.customerID, prid, a.refType, repoid),
+			Sha:                   rccommit.Hash,
+			Message:               rccommit.Message,
+			AuthorRefID:           rccommit.Author.User.UUID,
+			CommitterRefID:        rccommit.Author.User.UUID,
+			IntegrationInstanceID: sdk.StringPointer(a.integrationInstanceID),
 		}
 		sdk.ConvertTimeToDateModel(rccommit.Date, &item.CreatedDate)
-		prcommitchan <- item
+		if err := a.pipe.Write(item); err != nil {
+			return fmt.Errorf("error writing pr commit to pipe: %w", err)
+		}
 	}
+	return nil
 }
