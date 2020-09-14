@@ -17,6 +17,7 @@ func toAccount(ws api.WorkSpacesResponse, accountType sdk.ConfigAccountType, rep
 		Name:        &ws.Name,
 		Description: &ws.Slug,
 		TotalCount:  &repoCount,
+		Selected:    sdk.BoolPointer(true),
 	}
 }
 
