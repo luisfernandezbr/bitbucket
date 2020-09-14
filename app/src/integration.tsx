@@ -47,10 +47,14 @@ const AccountList = ({ setError }: { setError: (error: Error | undefined) => voi
 		setFetching(true);
 		const fetch = async () => {
 			try {
-				config.accounts = {}
+				config.accounts = config.accounts || {}
 				const res: validateResponse = await setValidate(config);
 				for (let i = 0; i < res.accounts.length; i++) {
 					const obj = toAccount(res.accounts[i]);
+					if (installed) {
+						const selected = config.accounts[obj.id]?.selected
+						obj.selected = !!selected
+					}
 					accounts.push(obj);
 					config.accounts[obj.id] = obj;
 				}
