@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/pinpt/agent.next.bitbucket/internal/api"
-	"github.com/pinpt/agent.next/sdk"
+	"github.com/pinpt/bitbucket/internal/api"
+	"github.com/pinpt/agent/sdk"
 )
 
 // toAccount converts a WorkSpacesResponse to a sdk ConfigAccount

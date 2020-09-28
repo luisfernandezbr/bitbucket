@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pinpt/agent.next.bitbucket/internal/api"
-	"github.com/pinpt/agent.next/sdk"
+	"github.com/pinpt/bitbucket/internal/api"
+	"github.com/pinpt/agent/sdk"
 )
 
 // BitBucketIntegration is an integration for BitBucket

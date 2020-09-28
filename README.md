@@ -2,9 +2,9 @@
 
 ### Overview
 
-To run it locally, cd to `$GOPATH/src/github.com/pinpt/agent.next` and run the following
+To run it locally, cd to `$GOPATH/src/github.com/pinpt/agent` and run the following
 
-    go run -tags dev . dev ../agent.next.bitbucket \
+    go run -tags dev . dev ../agent.bitbucket \
 	--set 'basic_auth={"username":USER_NAME,"password":PASSWORD}' \
 	--set 'accounts={"bitbucket":{"login":"bitbucket", "type":"ORG", "public":true}, "microsoft":{"login":"microsoft", "type":"ORG", "public":true}}' \
 	 --set 'exclusions={"bitbucket": "bitbucket/geordi"}'

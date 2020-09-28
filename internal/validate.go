@@ -3,8 +3,8 @@ package internal
 import (
 	"fmt"
 
-	"github.com/pinpt/agent.next.bitbucket/internal/api"
-	"github.com/pinpt/agent.next/sdk"
+	"github.com/pinpt/bitbucket/internal/api"
+	"github.com/pinpt/agent/sdk"
 )
 
 // Validate is called when the integration is requesting a validation from the app

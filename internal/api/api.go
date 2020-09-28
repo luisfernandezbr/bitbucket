@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/pinpt/agent.next/sdk"
+	"github.com/pinpt/agent/sdk"
 )
 
 const updatedFormat = "2006-01-02T15:04:05.999999999-07:00"
