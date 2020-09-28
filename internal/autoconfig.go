@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/pinpt/bitbucket/internal/api"
-	"github.com/pinpt/agent/sdk"
+	"github.com/pinpt/agent/v4/sdk"
 )
 
 // toAccount converts a WorkSpacesResponse to a sdk ConfigAccount

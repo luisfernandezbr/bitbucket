@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/pinpt/agent/sdk"
+	"github.com/pinpt/agent/v4/sdk"
 )
 
 // FetchRepos gets team names
