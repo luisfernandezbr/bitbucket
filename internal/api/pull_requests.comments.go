@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/pinpt/agent.next/sdk"
+	"github.com/pinpt/agent/sdk"
 )
 
 func (a *API) fetchPullRequestComments(pr PullRequestResponse, reponame string, repoid string, updated time.Time) error {

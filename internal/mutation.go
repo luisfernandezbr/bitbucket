@@ -1,6 +1,6 @@
 package internal
 
-import "github.com/pinpt/agent.next/sdk"
+import "github.com/pinpt/agent/sdk"
 
 // Mutation is called when a mutation is received on behalf of the integration
 func (g *BitBucketIntegration) Mutation(mutation sdk.Mutation) error {

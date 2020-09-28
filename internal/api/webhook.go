@@ -3,7 +3,7 @@ package api
 import (
 	"net/url"
 
-	"github.com/pinpt/agent.next/sdk"
+	"github.com/pinpt/agent/sdk"
 )
 
 const webhookName = "pinpoint_webhooks"
