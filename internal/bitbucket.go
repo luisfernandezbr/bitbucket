@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/pinpt/bitbucket/internal/api"
-	"github.com/pinpt/agent/sdk"
+	"github.com/pinpt/agent/v4/sdk"
 )
 
 // BitBucketIntegration is an integration for BitBucket

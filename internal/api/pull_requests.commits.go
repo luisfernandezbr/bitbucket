@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/pinpt/agent/sdk"
+	"github.com/pinpt/agent/v4/sdk"
 )
 
 // FetchFirstPullRequestCommit fetches the first commit in the pr
