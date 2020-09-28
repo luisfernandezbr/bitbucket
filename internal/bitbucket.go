@@ -116,7 +116,10 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	teams := api.ExtractWorkSpaceIDs(wss)
 	var thirdparty []string
 	if accounts != nil {
-		for name := range *accounts {
+		for name, acc := range *accounts {
+			if acc.Selected != nil && !*acc.Selected {
+				continue
+			}
 			thirdparty = append(thirdparty, name)
 			teams = append(teams, name)
 		}
