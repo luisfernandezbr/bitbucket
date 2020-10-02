@@ -3,8 +3,8 @@ package internal
 import (
 	"fmt"
 
-	"github.com/pinpt/agent/v4/sdk"
 	"github.com/pinpt/bitbucket/internal/api"
+	"github.com/pinpt/agent/v4/sdk"
 )
 
 // Validate is called when the integration is requesting a validation from the app
