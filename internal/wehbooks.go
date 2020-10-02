@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pinpt/agent/v4/sdk"
 	"github.com/pinpt/bitbucket/internal/api"
-	"github.com/pinpt/agent/sdk"
 )
 
 const webhookVersion = "1" // change this to have the webhook uninstalled and reinstalled new
