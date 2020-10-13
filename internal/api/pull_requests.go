@@ -119,7 +119,6 @@ func (a *API) syncPRReviewRequests(prID string, currentRequests map[string]bool)
 func (a *API) ExtractPullRequestReview(raw PullRequestResponse, repoID string) error {
 	prID := sdk.NewSourceCodePullRequestID(a.customerID, strconv.FormatInt(raw.ID, 10), a.refType, repoID)
 	requests := make(map[string]bool)
-	fmt.Println(">>>", raw.ID, sdk.Stringify(raw.Participants))
 	for _, participant := range raw.Participants {
 		if participant.Role == "REVIEWER" {
 			if participant.Approved {
