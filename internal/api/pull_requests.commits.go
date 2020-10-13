@@ -78,6 +78,9 @@ func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, r
 }
 
 func (a *API) sendPullRequestCommits(raw []prCommitResponse, repoid, prid string) error {
+	if len(raw) == 0 {
+		return nil
+	}
 
 	// we need the first id of the pr in the pr object
 	key := FirstSha(repoid, prid)
