@@ -3,16 +3,17 @@ package internal
 import (
 	"fmt"
 
-	"github.com/pinpt/bitbucket/internal/api"
 	"github.com/pinpt/agent/v4/sdk"
+	"github.com/pinpt/bitbucket/internal/api"
 )
 
 // Validate is called when the integration is requesting a validation from the app
 func (g *BitBucketIntegration) Validate(validate sdk.Validate) (map[string]interface{}, error) {
+	logger := validate.Logger()
 	config := validate.Config()
-	sdk.LogInfo(g.logger, "validate", "customer_id", validate.CustomerID())
+	sdk.LogInfo(logger, "validate", "customer_id", validate.CustomerID())
 	// FIXME(robin): make api okay with nil state/pipe
-	a := api.New(g.logger, g.httpClient, nil, nil, validate.CustomerID(), validate.IntegrationInstanceID(), g.refType, g.getHTTPCredOpts(config))
+	a := api.New(logger, g.httpClient, nil, nil, validate.CustomerID(), validate.IntegrationInstanceID(), g.refType, g.getHTTPCredOpts(logger, config))
 	workspaces, err := a.FetchWorkSpaces()
 	if err != nil {
 		return nil, fmt.Errorf("error fetching user workspaces: %w", err)
