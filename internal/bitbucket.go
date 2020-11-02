@@ -159,12 +159,12 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	}()
 	go func() {
 		for _, team := range teams {
-			if err := a.FetchRepos(team, updated, repochan); err != nil {
+			if err := a.FetchUsers(team, updated); err != nil {
 				sdk.LogError(logger, "error fetching repos", "err", err)
 				errchan <- err
 				return
 			}
-			if err := a.FetchUsers(team, updated); err != nil {
+			if err := a.FetchRepos(team, updated, repochan); err != nil {
 				sdk.LogError(logger, "error fetching repos", "err", err)
 				errchan <- err
 				return
