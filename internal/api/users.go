@@ -65,7 +65,7 @@ func (a *API) sendUsers(raw []userResponse, updated time.Time) error {
 		if err := a.pipe.Write(&sdk.SourceCodeUser{
 			AvatarURL:             sdk.StringPointer(user.Links.Avatar.Href),
 			CustomerID:            a.customerID,
-			RefID:                 user.UUID,
+			RefID:                 user.RefID(),
 			RefType:               a.refType,
 			Member:                true,
 			Name:                  user.DisplayName,
@@ -77,4 +77,9 @@ func (a *API) sendUsers(raw []userResponse, updated time.Time) error {
 		}
 	}
 	return nil
+}
+
+// RefID will return the the ref_id of the user
+func (u *attlassianUser) RefID() string {
+	return u.AccountID
 }

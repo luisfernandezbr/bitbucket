@@ -131,19 +131,19 @@ func (a *API) ExtractPullRequestReview(raw PullRequestResponse, repoID string) e
 					RefID:                 sdk.Hash(raw.ID, participant.User.AccountID),
 					RefType:               a.refType,
 					RepoID:                repoID,
-					UserRefID:             participant.User.UUID,
+					UserRefID:             participant.User.AccountID,
 					State:                 sdk.SourceCodePullRequestReviewStateApproved,
 				}); err != nil {
 					return fmt.Errorf("error writing review to pipe: %w", err)
 				}
 			} else if participant.ParticipatedOn.IsZero() {
 				// a non-participated reviewer is counted as a request
-				id := sdk.NewSourceCodePullRequestReviewRequestID(a.customerID, a.refType, prID, participant.User.UUID)
+				id := sdk.NewSourceCodePullRequestReviewRequestID(a.customerID, a.refType, prID, participant.User.AccountID)
 				sdk.LogDebug(a.logger, "sending a pr review request", "_id", id)
 				if err := a.pipe.Write(&sdk.SourceCodePullRequestReviewRequest{
 					Active:                 true,
 					CreatedDate:            sdk.SourceCodePullRequestReviewRequestCreatedDate(*sdk.NewDateWithTime(raw.UpdatedOn)),
-					RequestedReviewerRefID: participant.User.UUID,
+					RequestedReviewerRefID: participant.User.AccountID,
 					RefType:                a.refType,
 					PullRequestID:          prID,
 					CustomerID:             a.customerID,
@@ -176,7 +176,7 @@ func (a *API) ConvertPullRequest(raw PullRequestResponse, repoid, firstsha strin
 		Description:           `<div class="source-bitbucket">` + sdk.ConvertMarkdownToHTML(raw.Description) + "</div>",
 		URL:                   raw.Links.HTML.Href,
 		Identifier:            fmt.Sprintf("#%d", raw.ID), // in bitbucket looks like #1 is the format for PR identifiers in their UI
-		CreatedByRefID:        raw.Author.UUID,
+		CreatedByRefID:        raw.Author.RefID(),
 	}
 	sdk.ConvertTimeToDateModel(raw.CreatedOn, &pr.CreatedDate)
 	sdk.ConvertTimeToDateModel(raw.UpdatedOn, &pr.UpdatedDate)
@@ -185,12 +185,12 @@ func (a *API) ConvertPullRequest(raw PullRequestResponse, repoid, firstsha strin
 		pr.Status = sdk.SourceCodePullRequestStatusOpen
 	case "DECLINED":
 		pr.Status = sdk.SourceCodePullRequestStatusClosed
-		pr.ClosedByRefID = raw.ClosedBy.AccountID
+		pr.ClosedByRefID = raw.ClosedBy.RefID()
 		sdk.ConvertTimeToDateModel(raw.UpdatedOn, &pr.ClosedDate)
 	case "MERGED":
 		pr.MergeSha = raw.MergeCommit.Hash
 		pr.MergeCommitID = sdk.NewSourceCodeCommitID(a.customerID, raw.MergeCommit.Hash, a.refType, pr.RepoID)
-		pr.MergedByRefID = raw.ClosedBy.AccountID
+		pr.MergedByRefID = raw.ClosedBy.RefID()
 		pr.Status = sdk.SourceCodePullRequestStatusMerged
 		sdk.ConvertTimeToDateModel(raw.UpdatedOn, &pr.MergedDate)
 	default:

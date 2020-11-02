@@ -101,8 +101,8 @@ func (a *API) sendPullRequestCommits(raw []prCommitResponse, repoid, prid string
 			PullRequestID:         sdk.NewSourceCodePullRequestID(a.customerID, prid, a.refType, repoid),
 			Sha:                   rccommit.Hash,
 			Message:               rccommit.Message,
-			AuthorRefID:           rccommit.Author.User.UUID,
-			CommitterRefID:        rccommit.Author.User.UUID,
+			AuthorRefID:           rccommit.Author.User.RefID(),
+			CommitterRefID:        rccommit.Author.User.RefID(),
 			IntegrationInstanceID: sdk.StringPointer(a.integrationInstanceID),
 		}
 		sdk.ConvertTimeToDateModel(rccommit.Date, &item.CreatedDate)
