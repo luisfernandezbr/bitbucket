@@ -13,6 +13,10 @@ func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.Source
 	sdk.LogDebug(a.logger, "fetching repos", "team", team)
 	endpoint := sdk.JoinURL("repositories", team)
 	params := url.Values{}
+	if !updated.IsZero() {
+		params.Set("q", `updated_on > `+updated.Format(updatedFormat))
+	}
+	params.Set("sort", "-updated_on")
 	out := make(chan objects)
 	errchan := make(chan error)
 	go func() {
@@ -22,7 +26,7 @@ func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.Source
 				errchan <- err
 				return
 			}
-			a.sendRepos(rawRepos, updated, repo)
+			a.sendRepos(rawRepos, repo)
 		}
 		errchan <- nil
 	}()
@@ -66,7 +70,7 @@ func (a *API) ConvertRepo(raw RepoResponse) *sdk.SourceCodeRepo {
 	}
 }
 
-func (a *API) sendRepos(raw []RepoResponse, updated time.Time, repo chan<- *sdk.SourceCodeRepo) {
+func (a *API) sendRepos(raw []RepoResponse, repo chan<- *sdk.SourceCodeRepo) {
 	for _, each := range raw {
 		repo <- a.ConvertRepo(each)
 	}

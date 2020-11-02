@@ -178,8 +178,6 @@ func (a *API) ConvertPullRequest(raw PullRequestResponse, repoid, firstsha strin
 		CreatedByRefID:        raw.Author.UUID,
 	}
 	sdk.ConvertTimeToDateModel(raw.CreatedOn, &pr.CreatedDate)
-	sdk.ConvertTimeToDateModel(raw.UpdatedOn, &pr.MergedDate)
-	sdk.ConvertTimeToDateModel(raw.UpdatedOn, &pr.ClosedDate)
 	sdk.ConvertTimeToDateModel(raw.UpdatedOn, &pr.UpdatedDate)
 	switch raw.State {
 	case "OPEN":
@@ -187,11 +185,13 @@ func (a *API) ConvertPullRequest(raw PullRequestResponse, repoid, firstsha strin
 	case "DECLINED":
 		pr.Status = sdk.SourceCodePullRequestStatusClosed
 		pr.ClosedByRefID = raw.ClosedBy.AccountID
+		sdk.ConvertTimeToDateModel(raw.UpdatedOn, &pr.ClosedDate)
 	case "MERGED":
 		pr.MergeSha = raw.MergeCommit.Hash
 		pr.MergeCommitID = sdk.NewSourceCodeCommitID(a.customerID, raw.MergeCommit.Hash, a.refType, pr.RepoID)
 		pr.MergedByRefID = raw.ClosedBy.AccountID
 		pr.Status = sdk.SourceCodePullRequestStatusMerged
+		sdk.ConvertTimeToDateModel(raw.UpdatedOn, &pr.MergedDate)
 	default:
 		sdk.LogError(a.logger, "PR has an unknown state", "state", raw.State, "ref_id", pr.RefID)
 	}
