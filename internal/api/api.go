@@ -37,7 +37,7 @@ func New(logger sdk.Logger, client sdk.HTTPClient, state sdk.State, pipe sdk.Pip
 	}
 }
 
-func (a *API) paginate(endpoint string, params url.Values, out chan<- objects) error {
+func (a *API) paginate(endpoint string, params url.Values, out chan<- json.RawMessage) error {
 	if params == nil {
 		params = url.Values{}
 	}
@@ -93,16 +93,6 @@ func (a *API) post(endpoint string, data interface{}, params url.Values, out int
 		params = url.Values{}
 	}
 	return a.client.Post(strings.NewReader(sdk.Stringify(data)), out, sdk.WithEndpoint(endpoint), sdk.WithGetQueryParameters(params), a.creds)
-}
-
-type objects []map[string]interface{}
-
-func (o objects) Unmarshal(out interface{}) error {
-	b, err := json.Marshal(o)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(b, out)
 }
 
 // FirstSha returns the state key for the first commit sha of a pr

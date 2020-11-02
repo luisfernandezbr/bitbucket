@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -12,12 +13,12 @@ import (
 // FetchFirstPullRequestCommit fetches the first commit in the pr
 func (a *API) FetchFirstPullRequestCommit(reponame, prid string) (string, error) {
 	var hash string
-	out := make(chan objects)
+	out := make(chan json.RawMessage)
 	errchan := make(chan error)
 	go func() {
 		for obj := range out {
 			rawResponse := []prCommitResponse{}
-			if err := obj.Unmarshal(&rawResponse); err != nil {
+			if err := json.Unmarshal(obj, &rawResponse); err != nil {
 				errchan <- err
 				return
 			}
@@ -46,13 +47,13 @@ func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, r
 	}
 	params.Set("sort", "-updated_on")
 
-	out := make(chan objects)
+	out := make(chan json.RawMessage)
 	errchan := make(chan error)
 	var count int
 	go func() {
 		for obj := range out {
 			rawResponse := []prCommitResponse{}
-			if err := obj.Unmarshal(&rawResponse); err != nil {
+			if err := json.Unmarshal(obj, &rawResponse); err != nil {
 				errchan <- err
 				return
 			}

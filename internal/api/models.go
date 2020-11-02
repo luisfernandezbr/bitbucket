@@ -1,15 +1,16 @@
 package api
 
 import (
+	"encoding/json"
 	"time"
 )
 
 type paginationResponse struct {
-	Page       int64   `json:"page"`
-	PageLength int64   `json:"pagelen"`
-	Size       int64   `json:"size"`
-	Next       string  `json:"next"`
-	Values     objects `json:"values"`
+	Page       int64           `json:"page"`
+	PageLength int64           `json:"pagelen"`
+	Size       int64           `json:"size"`
+	Next       string          `json:"next"`
+	Values     json.RawMessage `json:"values"`
 }
 
 type linkResponse struct {
@@ -109,24 +110,8 @@ type RepoResponse struct {
 		Name string `json:"name"`
 		Type string `json:"type"`
 	} `json:"mainbranch"`
-	Name  string `json:"name"`
-	Owner struct {
-		DisplayName string `json:"display_name"`
-		Links       struct {
-			Avatar struct {
-				Href string `json:"href"`
-			} `json:"avatar"`
-			HTML struct {
-				Href string `json:"href"`
-			} `json:"html"`
-			Self struct {
-				Href string `json:"href"`
-			} `json:"self"`
-		} `json:"links"`
-		Type     string `json:"type"`
-		Username string `json:"username"`
-		UUID     string `json:"uuid"`
-	} `json:"owner"`
+	Name    string         `json:"name"`
+	Owner   attlassianUser `json:"owner"`
 	Project struct {
 		Key   string `json:"key"`
 		Links struct {
@@ -170,43 +155,50 @@ type RepoResponse struct {
 	} `json:"workspace"`
 }
 
-type userResponse struct {
-	AccountID     string      `json:"account_id"`
-	AccountStatus string      `json:"account_status"`
-	CreatedOn     time.Time   `json:"created_on"`
-	Department    interface{} `json:"department"`
-	DisplayName   string      `json:"display_name"`
-	Has2FaEnabled interface{} `json:"has_2fa_enabled"`
-	IsStaff       bool        `json:"is_staff"`
-	JobTitle      string      `json:"job_title"`
-	Links         struct {
-		Avatar struct {
-			Href string `json:"href"`
-		} `json:"avatar"`
-		Hooks struct {
-			Href string `json:"href"`
-		} `json:"hooks"`
-		HTML struct {
-			Href string `json:"href"`
-		} `json:"html"`
-		Repositories struct {
-			Href string `json:"href"`
-		} `json:"repositories"`
+type attlassianUser struct {
+	DisplayName string `json:"display_name"`
+	UUID        string `json:"uuid"`
+	Links       struct {
 		Self struct {
 			Href string `json:"href"`
 		} `json:"self"`
-		Snippets struct {
+		HTML struct {
 			Href string `json:"href"`
-		} `json:"snippets"`
+		} `json:"html"`
+		Avatar struct {
+			Href string `json:"href"`
+		} `json:"avatar"`
 	} `json:"links"`
-	Location     interface{} `json:"location"`
-	Nickname     string      `json:"nickname"`
-	Organization interface{} `json:"organization"`
-	Properties   struct {
-	} `json:"properties"`
-	Type     string      `json:"type"`
-	UUID     string      `json:"uuid"`
-	Zoneinfo interface{} `json:"zoneinfo"`
+	Nickname  string `json:"nickname"`
+	Type      string `json:"type"`
+	AccountID string `json:"account_id"`
+}
+
+type userResponse struct {
+	Links struct {
+		Self struct {
+			Href string `json:"href"`
+		} `json:"self"`
+	} `json:"links"`
+	Type      string         `json:"type"`
+	User      attlassianUser `json:"user"`
+	Workspace struct {
+		Slug  string `json:"slug"`
+		Type  string `json:"type"`
+		Name  string `json:"name"`
+		Links struct {
+			Self struct {
+				Href string `json:"href"`
+			} `json:"self"`
+			HTML struct {
+				Href string `json:"href"`
+			} `json:"html"`
+			Avatar struct {
+				Href string `json:"href"`
+			} `json:"avatar"`
+		} `json:"links"`
+		UUID string `json:"uuid"`
+	} `json:"workspace"`
 }
 
 // MyUser is an attlassian user with personal info
@@ -222,47 +214,13 @@ type MyUser struct {
 
 // PullRequestResponse pull request response
 type PullRequestResponse struct {
-	Author struct {
-		AccountID   string `json:"account_id"`
-		DisplayName string `json:"display_name"`
-		Links       struct {
-			Avatar struct {
-				Href string `json:"href"`
-			} `json:"avatar"`
-			HTML struct {
-				Href string `json:"href"`
-			} `json:"html"`
-			Self struct {
-				Href string `json:"href"`
-			} `json:"self"`
-		} `json:"links"`
-		Nickname string `json:"nickname"`
-		Type     string `json:"type"`
-		UUID     string `json:"uuid"`
-	} `json:"author"`
-	CloseSourceBranch bool `json:"close_source_branch"`
-	ClosedBy          struct {
-		AccountID   string `json:"account_id"`
-		DisplayName string `json:"display_name"`
-		Links       struct {
-			Avatar struct {
-				Href string `json:"href"`
-			} `json:"avatar"`
-			HTML struct {
-				Href string `json:"href"`
-			} `json:"html"`
-			Self struct {
-				Href string `json:"href"`
-			} `json:"self"`
-		} `json:"links"`
-		Nickname string `json:"nickname"`
-		Type     string `json:"type"`
-		UUID     string `json:"uuid"`
-	} `json:"closed_by"`
-	CommentCount int64     `json:"comment_count"`
-	CreatedOn    time.Time `json:"created_on"`
-	Description  string    `json:"description"`
-	Destination  struct {
+	Author            attlassianUser `json:"author"`
+	CloseSourceBranch bool           `json:"close_source_branch"`
+	ClosedBy          attlassianUser `json:"closed_by"`
+	CommentCount      int64          `json:"comment_count"`
+	CreatedOn         time.Time      `json:"created_on"`
+	Description       string         `json:"description"`
+	Destination       struct {
 		Branch struct {
 			Name string `json:"name"`
 		} `json:"branch"`
@@ -424,49 +382,15 @@ type PullRequestCommentResponse struct {
 		Title string `json:"title"`
 		Type  string `json:"type"`
 	} `json:"pullrequest"`
-	Type      string    `json:"type"`
-	UpdatedOn time.Time `json:"updated_on"`
-	User      struct {
-		AccountID   string `json:"account_id"`
-		DisplayName string `json:"display_name"`
-		Links       struct {
-			Avatar struct {
-				Href string `json:"href"`
-			} `json:"avatar"`
-			HTML struct {
-				Href string `json:"href"`
-			} `json:"html"`
-			Self struct {
-				Href string `json:"href"`
-			} `json:"self"`
-		} `json:"links"`
-		Nickname string `json:"nickname"`
-		Type     string `json:"type"`
-		UUID     string `json:"uuid"`
-	} `json:"user"`
+	Type      string         `json:"type"`
+	UpdatedOn time.Time      `json:"updated_on"`
+	User      attlassianUser `json:"user"`
 }
 type prCommitResponse struct {
 	Author struct {
-		Raw  string `json:"raw"`
-		Type string `json:"type"`
-		User struct {
-			AccountID   string `json:"account_id"`
-			DisplayName string `json:"display_name"`
-			Links       struct {
-				Avatar struct {
-					Href string `json:"href"`
-				} `json:"avatar"`
-				HTML struct {
-					Href string `json:"href"`
-				} `json:"html"`
-				Self struct {
-					Href string `json:"href"`
-				} `json:"self"`
-			} `json:"links"`
-			Nickname string `json:"nickname"`
-			Type     string `json:"type"`
-			UUID     string `json:"uuid"`
-		} `json:"user"`
+		Raw  string         `json:"raw"`
+		Type string         `json:"type"`
+		User attlassianUser `json:"user"`
 	} `json:"author"`
 	Date  time.Time `json:"date"`
 	Hash  string    `json:"hash"`

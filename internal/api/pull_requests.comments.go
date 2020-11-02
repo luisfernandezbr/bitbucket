@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"time"
@@ -17,13 +18,13 @@ func (a *API) fetchPullRequestComments(pr PullRequestResponse, reponame string, 
 	}
 	params.Set("sort", "-updated_on")
 
-	out := make(chan objects)
+	out := make(chan json.RawMessage)
 	errchan := make(chan error)
 	var count int
 	go func() {
 		for obj := range out {
 			rawResponse := []PullRequestCommentResponse{}
-			if err := obj.Unmarshal(&rawResponse); err != nil {
+			if err := json.Unmarshal(obj, &rawResponse); err != nil {
 				errchan <- err
 				return
 			}

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 
@@ -16,12 +17,12 @@ func (a *API) FetchWorkSpaces() ([]WorkSpacesResponse, error) {
 	params.Set("role", "member")
 
 	var workspaces []WorkSpacesResponse
-	out := make(chan objects)
+	out := make(chan json.RawMessage)
 	errchan := make(chan error, 1)
 	go func() {
 		for obj := range out {
 			res := []WorkSpacesResponse{}
-			if err := obj.Unmarshal(&res); err != nil {
+			if err := json.Unmarshal(obj, &res); err != nil {
 				errchan <- err
 				return
 			}

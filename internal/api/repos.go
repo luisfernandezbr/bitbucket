@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"time"
@@ -17,12 +18,12 @@ func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.Source
 		params.Set("q", `updated_on > `+updated.Format(updatedFormat))
 	}
 	params.Set("sort", "-updated_on")
-	out := make(chan objects)
+	out := make(chan json.RawMessage)
 	errchan := make(chan error)
 	go func() {
 		for obj := range out {
 			rawRepos := []RepoResponse{}
-			if err := obj.Unmarshal(&rawRepos); err != nil {
+			if err := json.Unmarshal(obj, &rawRepos); err != nil {
 				errchan <- err
 				return
 			}

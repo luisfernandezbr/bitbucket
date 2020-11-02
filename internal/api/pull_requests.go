@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -25,7 +26,7 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 	// Greater than 50 throws "Invalid pagelen"
 	params.Set("pagelen", "50")
 
-	out := make(chan objects)
+	out := make(chan json.RawMessage)
 	errchan := make(chan error)
 	var count int
 	go func() {
@@ -34,7 +35,7 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 				continue
 			}
 			rawResponse := []PullRequestResponse{}
-			if err := obj.Unmarshal(&rawResponse); err != nil {
+			if err := json.Unmarshal(obj, &rawResponse); err != nil {
 				errchan <- err
 				return
 			}
