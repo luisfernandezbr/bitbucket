@@ -65,18 +65,18 @@ func (a *API) processPullRequests(raw []PullRequestResponse, reponame string, re
 			return a.fetchPullRequestComments(pr, reponame, repoid, updated)
 		})
 		async.Do(func() error {
-			return a.fetchPullRequestCommits(pr, reponame, repoid, updated)
+			return a.ExtractPullRequestReview(pr, repoid)
 		})
 		async.Do(func() error {
-			return a.ExtractPullRequestReview(pr, repoid)
+			shas, err := a.fetchPullRequestCommits(pr, reponame, repoid, updated)
+			if err != nil {
+				return err
+			}
+			return a.sendPullRequest(pr, repoid, updated, shas)
 		})
 	}
 	if err := async.Wait(); err != nil {
 		return err
-	}
-	// we need the first commit of every pr in the pr object, wait for the commits to be fetched before processing prs
-	for _, pr := range raw {
-		a.sendPullRequest(pr, repoid, updated)
 	}
 	return nil
 }
@@ -160,9 +160,18 @@ func (a *API) ExtractPullRequestReview(raw PullRequestResponse, repoID string) e
 }
 
 // ConvertPullRequest converts from raw response to pinpoint object
-func (a *API) ConvertPullRequest(raw PullRequestResponse, repoid, firstsha string) *sdk.SourceCodePullRequest {
-
-	commitid := sdk.NewSourceCodeCommitID(a.customerID, firstsha, a.refType, repoid)
+func (a *API) ConvertPullRequest(raw PullRequestResponse, repoid string, commitShas []string) *sdk.SourceCodePullRequest {
+	var firstSha string
+	if len(commitShas) > 0 {
+		firstSha = commitShas[0]
+	} else {
+		sdk.LogInfo(a.logger, "no first commit sha found for pr", "pr", raw.ID, "repo", repoid)
+	}
+	firstCommitID := sdk.NewSourceCodeCommitID(a.customerID, firstSha, a.refType, repoid)
+	var commitIDs []string
+	for _, sha := range commitShas {
+		commitIDs = append(commitIDs, sdk.NewSourceCodeCommitID(a.customerID, sha, a.refType, repoid))
+	}
 	pr := &sdk.SourceCodePullRequest{
 		Active:                true,
 		CustomerID:            a.customerID,
@@ -170,13 +179,15 @@ func (a *API) ConvertPullRequest(raw PullRequestResponse, repoid, firstsha strin
 		RefType:               a.refType,
 		RefID:                 fmt.Sprint(raw.ID),
 		RepoID:                sdk.NewSourceCodeRepoID(a.customerID, repoid, a.refType),
-		BranchID:              sdk.NewSourceCodeBranchID(a.customerID, repoid, a.refType, raw.Source.Branch.Name, commitid),
+		BranchID:              sdk.NewSourceCodeBranchID(a.customerID, repoid, a.refType, raw.Source.Branch.Name, firstCommitID),
 		BranchName:            raw.Source.Branch.Name,
 		Title:                 raw.Title,
 		Description:           `<div class="source-bitbucket">` + sdk.ConvertMarkdownToHTML(raw.Description) + "</div>",
 		URL:                   raw.Links.HTML.Href,
 		Identifier:            fmt.Sprintf("#%d", raw.ID), // in bitbucket looks like #1 is the format for PR identifiers in their UI
 		CreatedByRefID:        raw.Author.RefID(),
+		CommitShas:            commitShas,
+		CommitIds:             commitIDs,
 	}
 	sdk.ConvertTimeToDateModel(raw.CreatedOn, &pr.CreatedDate)
 	sdk.ConvertTimeToDateModel(raw.UpdatedOn, &pr.UpdatedDate)
@@ -199,15 +210,9 @@ func (a *API) ConvertPullRequest(raw PullRequestResponse, repoid, firstsha strin
 	return pr
 }
 
-func (a *API) sendPullRequest(raw PullRequestResponse, repoid string, updated time.Time) {
+func (a *API) sendPullRequest(raw PullRequestResponse, repoid string, updated time.Time, commitShas []string) error {
 	if raw.UpdatedOn.Before(updated) {
-		return
+		return nil
 	}
-	prid := fmt.Sprint(raw.ID)
-	var firstsha string
-	ok, _ := a.state.Get(FirstSha(repoid, prid), &firstsha)
-	if !ok {
-		sdk.LogInfo(a.logger, "no first commit sha found for pr", "pr", raw.ID, "repo", repoid)
-	}
-	a.pipe.Write(a.ConvertPullRequest(raw, repoid, firstsha))
+	return a.pipe.Write(a.ConvertPullRequest(raw, repoid, commitShas))
 }

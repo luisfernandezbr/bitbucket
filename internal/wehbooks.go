@@ -120,16 +120,11 @@ func (g *BitBucketIntegration) WebHook(webhook sdk.WebHook) error {
 			return err
 		}
 
-		var firstsha string
-		ok, _ := state.Get(api.FirstSha(raw.Repository.UUID, fmt.Sprint(raw.PullRequest.ID)), &firstsha)
-		if !ok {
-			var err error
-			firstsha, err = a.FetchFirstPullRequestCommit(raw.Repository.FullName, fmt.Sprint(raw.PullRequest.ID))
-			if err != nil {
-				return err
-			}
+		shas, err := a.FetchPullRequestCommits(raw.Repository.FullName, fmt.Sprint(raw.PullRequest.ID))
+		if err != nil {
+			return err
 		}
-		pr := a.ConvertPullRequest(raw.PullRequest, raw.Repository.UUID, firstsha)
+		pr := a.ConvertPullRequest(raw.PullRequest, raw.Repository.UUID, shas)
 		if err := pipe.Write(pr); err != nil {
 			return err
 		}

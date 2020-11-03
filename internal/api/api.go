@@ -64,6 +64,34 @@ func (a *API) paginate(endpoint string, params url.Values, out chan<- json.RawMe
 	}
 }
 
+func (a *API) paginateAsync(endpoint string, params url.Values, callback func(buf json.RawMessage) error) error {
+	if params == nil {
+		params = url.Values{}
+	}
+	var page string
+	for {
+		var res paginationResponse
+		if page != "" {
+			params.Set("page", page)
+		}
+		_, err := a.get(endpoint, params, &res)
+		if err != nil {
+			return err
+		}
+		if err := callback(res.Values); err != nil {
+			return err
+		}
+		if res.Next == "" {
+			return nil
+		}
+		u, _ := url.Parse(res.Next)
+		page = u.Query().Get("page")
+		if page == "" {
+			return fmt.Errorf("no `page` in next. %v", u.String())
+		}
+	}
+}
+
 // getCount will return the total number of records
 func (a *API) getCount(endpoint string, params url.Values) (int64, error) {
 	if params == nil {
@@ -93,9 +121,4 @@ func (a *API) post(endpoint string, data interface{}, params url.Values, out int
 		params = url.Values{}
 	}
 	return a.client.Post(strings.NewReader(sdk.Stringify(data)), out, sdk.WithEndpoint(endpoint), sdk.WithGetQueryParameters(params), a.creds)
-}
-
-// FirstSha returns the state key for the first commit sha of a pr
-func FirstSha(repoRefid, prRefid string) string {
-	return "prsha." + repoRefid + "." + prRefid
 }
