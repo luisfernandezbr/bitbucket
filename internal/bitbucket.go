@@ -7,6 +7,9 @@ import (
 
 	"github.com/pinpt/agent/v4/sdk"
 	"github.com/pinpt/bitbucket/internal/api"
+
+	// for dump stack trace support
+	_ "github.com/songgao/stacktraces/on/SIGUSR2"
 )
 
 // BitBucketIntegration is an integration for BitBucket
