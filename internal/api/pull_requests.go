@@ -126,6 +126,7 @@ func (a *API) ExtractPullRequestReview(raw PullRequestResponse, repoRefID string
 			if participant.Approved {
 				if err := a.pipe.Write(&sdk.SourceCodePullRequestReview{
 					Active:                true,
+					CreatedDate:           sdk.SourceCodePullRequestReviewCreatedDate(*sdk.NewDateWithTime(participant.ParticipatedOn)),
 					IntegrationInstanceID: sdk.StringPointer(a.integrationInstanceID),
 					CustomerID:            a.customerID,
 					PullRequestID:         prID,
