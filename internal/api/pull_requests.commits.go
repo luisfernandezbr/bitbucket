@@ -30,7 +30,7 @@ func (a *API) FetchPullRequestCommits(reponame, prid string) ([]string, error) {
 }
 
 // fetchPullRequestCommits will fetch all the commits for the pr after updated
-func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, repoid string, updated time.Time) ([]string, error) {
+func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, repoRefID string, updated time.Time) ([]string, error) {
 	sdk.LogDebug(a.logger, "fetching pull requests commits", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests", fmt.Sprint(pr.ID), "commits")
 	params := url.Values{}
@@ -45,7 +45,7 @@ func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, r
 		if err := json.Unmarshal(obj, &rawResponse); err != nil {
 			return err
 		}
-		commitShas, err := a.sendPullRequestCommits(rawResponse, repoid, fmt.Sprint(pr.ID))
+		commitShas, err := a.sendPullRequestCommits(rawResponse, repoRefID, fmt.Sprint(pr.ID))
 		if err != nil {
 			return fmt.Errorf("error sending pr commits: %w", err)
 		}
@@ -66,7 +66,7 @@ func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, r
 	return shas, nil
 }
 
-func (a *API) sendPullRequestCommits(raw []prCommitResponse, repoid, prid string) ([]string, error) {
+func (a *API) sendPullRequestCommits(raw []prCommitResponse, repoRefID, prRefID string) ([]string, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
@@ -80,8 +80,8 @@ func (a *API) sendPullRequestCommits(raw []prCommitResponse, repoid, prid string
 			RefType:               a.refType,
 			RefID:                 rccommit.Hash,
 			URL:                   rccommit.Links.HTML.Href,
-			RepoID:                sdk.NewSourceCodeRepoID(a.customerID, repoid, a.refType),
-			PullRequestID:         sdk.NewSourceCodePullRequestID(a.customerID, prid, a.refType, repoid),
+			RepoID:                sdk.NewSourceCodeRepoID(a.customerID, repoRefID, a.refType),
+			PullRequestID:         sdk.NewSourceCodePullRequestID(a.customerID, prRefID, a.refType, repoRefID),
 			Sha:                   rccommit.Hash,
 			Message:               rccommit.Message,
 			AuthorRefID:           rccommit.Author.User.RefID(),

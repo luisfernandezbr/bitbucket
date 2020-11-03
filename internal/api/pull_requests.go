@@ -11,7 +11,7 @@ import (
 )
 
 // FetchPullRequests gets team members
-func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Time) error {
+func (a *API) FetchPullRequests(reponame string, repoRefID string, updated time.Time) error {
 	sdk.LogDebug(a.logger, "fetching pull requests", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests")
 	params := url.Values{}
@@ -39,7 +39,7 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 				errchan <- err
 				return
 			}
-			if err := a.processPullRequests(rawResponse, reponame, repoid, updated); err != nil {
+			if err := a.processPullRequests(rawResponse, reponame, repoRefID, updated); err != nil {
 				errchan <- err
 				return
 			}
@@ -57,22 +57,22 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 	return nil
 }
 
-func (a *API) processPullRequests(raw []PullRequestResponse, reponame string, repoid string, updated time.Time) error {
+func (a *API) processPullRequests(raw []PullRequestResponse, reponame string, repoRefID string, updated time.Time) error {
 	async := sdk.NewAsync(10)
 	for _, _pr := range raw {
 		pr := _pr
 		async.Do(func() error {
-			return a.fetchPullRequestComments(pr, reponame, repoid, updated)
+			return a.fetchPullRequestComments(pr, reponame, repoRefID, updated)
 		})
 		async.Do(func() error {
-			return a.ExtractPullRequestReview(pr, repoid)
+			return a.ExtractPullRequestReview(pr, repoRefID)
 		})
 		async.Do(func() error {
-			shas, err := a.fetchPullRequestCommits(pr, reponame, repoid, updated)
+			shas, err := a.fetchPullRequestCommits(pr, reponame, repoRefID, updated)
 			if err != nil {
 				return err
 			}
-			return a.sendPullRequest(pr, repoid, updated, shas)
+			return a.sendPullRequest(pr, repoRefID, updated, shas)
 		})
 	}
 	if err := async.Wait(); err != nil {
@@ -117,8 +117,9 @@ func (a *API) syncPRReviewRequests(prID string, currentRequests map[string]bool)
 }
 
 // ExtractPullRequestReview will pull out reviews and review requests from a pr and send them to the pipe
-func (a *API) ExtractPullRequestReview(raw PullRequestResponse, repoID string) error {
-	prID := sdk.NewSourceCodePullRequestID(a.customerID, strconv.FormatInt(raw.ID, 10), a.refType, repoID)
+func (a *API) ExtractPullRequestReview(raw PullRequestResponse, repoRefID string) error {
+	prID := sdk.NewSourceCodePullRequestID(a.customerID, strconv.FormatInt(raw.ID, 10), a.refType, repoRefID)
+	repoID := sdk.NewSourceCodeRepoID(a.customerID, repoRefID, a.refType)
 	requests := make(map[string]bool)
 	for _, participant := range raw.Participants {
 		if participant.Role == "REVIEWER" {
@@ -160,17 +161,18 @@ func (a *API) ExtractPullRequestReview(raw PullRequestResponse, repoID string) e
 }
 
 // ConvertPullRequest converts from raw response to pinpoint object
-func (a *API) ConvertPullRequest(raw PullRequestResponse, repoid string, commitShas []string) *sdk.SourceCodePullRequest {
+func (a *API) ConvertPullRequest(raw PullRequestResponse, repoRefID string, commitShas []string) *sdk.SourceCodePullRequest {
 	var firstSha string
 	if len(commitShas) > 0 {
 		firstSha = commitShas[0]
 	} else {
-		sdk.LogInfo(a.logger, "no first commit sha found for pr", "pr", raw.ID, "repo", repoid)
+		sdk.LogInfo(a.logger, "no first commit sha found for pr", "pr", raw.ID, "repo", repoRefID)
 	}
-	firstCommitID := sdk.NewSourceCodeCommitID(a.customerID, firstSha, a.refType, repoid)
+	repoID := sdk.NewSourceCodeRepoID(a.customerID, repoRefID, a.refType)
+	firstCommitID := sdk.NewSourceCodeCommitID(a.customerID, firstSha, a.refType, repoID)
 	var commitIDs []string
 	for _, sha := range commitShas {
-		commitIDs = append(commitIDs, sdk.NewSourceCodeCommitID(a.customerID, sha, a.refType, repoid))
+		commitIDs = append(commitIDs, sdk.NewSourceCodeCommitID(a.customerID, sha, a.refType, repoID))
 	}
 	pr := &sdk.SourceCodePullRequest{
 		Active:                true,
@@ -178,8 +180,8 @@ func (a *API) ConvertPullRequest(raw PullRequestResponse, repoid string, commitS
 		IntegrationInstanceID: sdk.StringPointer(a.integrationInstanceID),
 		RefType:               a.refType,
 		RefID:                 fmt.Sprint(raw.ID),
-		RepoID:                sdk.NewSourceCodeRepoID(a.customerID, repoid, a.refType),
-		BranchID:              sdk.NewSourceCodeBranchID(a.customerID, repoid, a.refType, raw.Source.Branch.Name, firstCommitID),
+		RepoID:                repoID,
+		BranchID:              sdk.NewSourceCodeBranchID(a.customerID, repoID, a.refType, raw.Source.Branch.Name, firstCommitID),
 		BranchName:            raw.Source.Branch.Name,
 		Title:                 raw.Title,
 		Description:           `<div class="source-bitbucket">` + sdk.ConvertMarkdownToHTML(raw.Description) + "</div>",
@@ -210,9 +212,9 @@ func (a *API) ConvertPullRequest(raw PullRequestResponse, repoid string, commitS
 	return pr
 }
 
-func (a *API) sendPullRequest(raw PullRequestResponse, repoid string, updated time.Time, commitShas []string) error {
+func (a *API) sendPullRequest(raw PullRequestResponse, repoRefID string, updated time.Time, commitShas []string) error {
 	if raw.UpdatedOn.Before(updated) {
 		return nil
 	}
-	return a.pipe.Write(a.ConvertPullRequest(raw, repoid, commitShas))
+	return a.pipe.Write(a.ConvertPullRequest(raw, repoRefID, commitShas))
 }
