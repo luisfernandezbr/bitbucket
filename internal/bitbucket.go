@@ -67,6 +67,7 @@ func (g *BitBucketIntegration) getHTTPCredOpts(logger sdk.Logger, config sdk.Con
 func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	logger := export.Logger()
 	sdk.LogInfo(logger, "export started")
+	ts := time.Now()
 
 	// Pipe must be called to begin an export and receive a pipe for sending data
 	pipe := export.Pipe()
@@ -181,7 +182,7 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 
 	close(repochan)
 
-	sdk.LogInfo(logger, "export finished")
+	sdk.LogInfo(logger, "export finished", "duration", time.Since(ts))
 
 	return nil
 }

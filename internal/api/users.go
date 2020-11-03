@@ -49,7 +49,7 @@ func (a *API) FetchUsers(team string, updated time.Time) error {
 	if err := <-errchan; err != nil {
 		return err
 	}
-	sdk.LogDebug(a.logger, "finished fetching users", "team", team, "count")
+	sdk.LogDebug(a.logger, "finished fetching users", "team", team, "count", count)
 	return nil
 }
 
