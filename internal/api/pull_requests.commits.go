@@ -74,7 +74,7 @@ func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, r
 	if err := <-errchan; err != nil {
 		return err
 	}
-	sdk.LogDebug(a.logger, "finished fetching pull requests commits", "repo", reponame, "count", count)
+	sdk.LogDebug(a.logger, "finished fetching pull request commits", "repo", reponame, "count", count)
 	return nil
 }
 

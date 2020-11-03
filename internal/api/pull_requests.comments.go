@@ -45,7 +45,7 @@ func (a *API) fetchPullRequestComments(pr PullRequestResponse, reponame string, 
 	if err := <-errchan; err != nil {
 		return err
 	}
-	sdk.LogDebug(a.logger, "finished fetching pull requests comments", "repo", reponame, "count", count)
+	sdk.LogDebug(a.logger, "finished fetching pull request comments", "repo", reponame, "count", count)
 	return nil
 }
 
