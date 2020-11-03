@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"time"
@@ -10,19 +11,29 @@ import (
 
 // FetchRepos gets team names
 func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.SourceCodeRepo) error {
-	sdk.LogDebug(a.logger, "fetching repos", "team", team)
+	sdk.LogDebug(a.logger, "fetching repos", "team", team, "since", updated)
 	endpoint := sdk.JoinURL("repositories", team)
 	params := url.Values{}
-	out := make(chan objects)
+	if !updated.IsZero() {
+		params.Set("q", `updated_on > `+updated.Format(updatedFormat))
+	}
+	params.Set("sort", "-updated_on")
+	out := make(chan json.RawMessage)
 	errchan := make(chan error)
+	var count int
 	go func() {
 		for obj := range out {
 			rawRepos := []RepoResponse{}
-			if err := obj.Unmarshal(&rawRepos); err != nil {
+			if err := json.Unmarshal(obj, &rawRepos); err != nil {
 				errchan <- err
 				return
 			}
-			a.sendRepos(rawRepos, updated, repo)
+			count += len(rawRepos)
+			for _, each := range rawRepos {
+				ts := time.Now()
+				repo <- a.ConvertRepo(each)
+				sdk.LogDebug(a.logger, "processed repo", "updated_on", each.UpdatedOn, "since", updated, "waited", time.Since(ts))
+			}
 		}
 		errchan <- nil
 	}()
@@ -32,7 +43,7 @@ func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.Source
 	if err := <-errchan; err != nil {
 		return err
 	}
-	sdk.LogDebug(a.logger, "finished fetching repos", "team", team)
+	sdk.LogDebug(a.logger, "finished fetching repos", "team", team, "count", count)
 	return nil
 }
 
@@ -63,11 +74,5 @@ func (a *API) ConvertRepo(raw RepoResponse) *sdk.SourceCodeRepo {
 		URL:                   raw.Links.HTML.Href,
 		Visibility:            visibility,
 		IntegrationInstanceID: sdk.StringPointer(a.integrationInstanceID),
-	}
-}
-
-func (a *API) sendRepos(raw []RepoResponse, updated time.Time, repo chan<- *sdk.SourceCodeRepo) {
-	for _, each := range raw {
-		repo <- a.ConvertRepo(each)
 	}
 }

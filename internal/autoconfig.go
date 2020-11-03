@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/pinpt/bitbucket/internal/api"
 	"github.com/pinpt/agent/v4/sdk"
+	"github.com/pinpt/bitbucket/internal/api"
 )
 
 // toAccount converts a WorkSpacesResponse to a sdk ConfigAccount
@@ -49,12 +49,13 @@ func separateUserWorkSpace(user api.MyUser, workspaces []api.WorkSpacesResponse)
 
 // AutoConfigure is called during the onboard process and it will add accounts to the config using the provided auth
 func (g *BitBucketIntegration) AutoConfigure(autoconfig sdk.AutoConfigure) (*sdk.Config, error) {
+	logger := autoconfig.Logger()
 	config := autoconfig.Config()
 	if config.Scope == nil {
 		return nil, errors.New("no config scope given for autoconfig")
 	}
-	sdk.LogInfo(g.logger, "autoconfiguring", "scope", config.Scope, "customer_id", autoconfig.CustomerID())
-	a := api.New(g.logger, g.httpClient, autoconfig.State(), autoconfig.Pipe(), autoconfig.CustomerID(), autoconfig.IntegrationInstanceID(), g.refType, g.getHTTPCredOpts(config))
+	sdk.LogInfo(logger, "autoconfiguring", "scope", config.Scope, "customer_id", autoconfig.CustomerID())
+	a := api.New(logger, g.httpClient, autoconfig.State(), autoconfig.Pipe(), autoconfig.CustomerID(), autoconfig.IntegrationInstanceID(), g.refType, g.getHTTPCredOpts(logger, config))
 	workspaces, err := a.FetchWorkSpaces()
 	if err != nil {
 		return nil, fmt.Errorf("error fetching user workspaces: %w", err)
@@ -64,7 +65,7 @@ func (g *BitBucketIntegration) AutoConfigure(autoconfig sdk.AutoConfigure) (*sdk
 	if len(workspaces) == 1 {
 		switch *config.Scope {
 		case sdk.OrgScope:
-			sdk.LogWarn(g.logger, "org scope autoconfig only included one workspace", "workspace_name", workspaces[0].Name)
+			sdk.LogWarn(logger, "org scope autoconfig only included one workspace", "workspace_name", workspaces[0].Name)
 		case sdk.UserScope:
 			repoCount, err := a.FetchRepoCount(workspaces[0].Slug)
 			if err != nil {
@@ -72,7 +73,7 @@ func (g *BitBucketIntegration) AutoConfigure(autoconfig sdk.AutoConfigure) (*sdk
 			}
 			accounts = append(accounts, toAccount(workspaces[0], sdk.ConfigAccountTypeUser, repoCount))
 		default:
-			sdk.LogWarn(g.logger, "unexpected auto config scope", "scope", config.Scope)
+			sdk.LogWarn(logger, "unexpected auto config scope", "scope", config.Scope)
 		}
 	} else {
 		// need to sort out user workspace from others
@@ -97,7 +98,7 @@ func (g *BitBucketIntegration) AutoConfigure(autoconfig sdk.AutoConfigure) (*sdk
 			}
 			accounts = append(accounts, toAccount(userWS, sdk.ConfigAccountTypeUser, repoCount))
 		default:
-			sdk.LogWarn(g.logger, "unexpected auto config scope", "scope", config.Scope)
+			sdk.LogWarn(logger, "unexpected auto config scope", "scope", config.Scope)
 		}
 	}
 	config.Accounts = toConfigAccounts(accounts)

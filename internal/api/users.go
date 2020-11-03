@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -21,12 +22,13 @@ func (a *API) FetchUsers(team string, updated time.Time) error {
 	sdk.LogDebug(a.logger, "fetching users", "team", team)
 	endpoint := sdk.JoinURL("workspaces", team, "members")
 	params := url.Values{}
-	out := make(chan objects)
+	var count int
+	out := make(chan json.RawMessage)
 	errchan := make(chan error)
 	go func() {
 		for obj := range out {
 			rawUsers := []userResponse{}
-			if err := obj.Unmarshal(&rawUsers); err != nil {
+			if err := json.Unmarshal(obj, &rawUsers); err != nil {
 				errchan <- err
 				return
 			}
@@ -34,6 +36,7 @@ func (a *API) FetchUsers(team string, updated time.Time) error {
 				errchan <- err
 				return
 			}
+			count += len(rawUsers)
 		}
 		errchan <- nil
 	}()
@@ -46,31 +49,37 @@ func (a *API) FetchUsers(team string, updated time.Time) error {
 	if err := <-errchan; err != nil {
 		return err
 	}
-	sdk.LogDebug(a.logger, "finished fetching users", "team", team)
+	sdk.LogDebug(a.logger, "finished fetching users", "team", team, "count", count)
 	return nil
 }
 
 func (a *API) sendUsers(raw []userResponse, updated time.Time) error {
-	for _, each := range raw {
+	for _, meta := range raw {
+		user := meta.User
 		var usertype sdk.SourceCodeUserType
-		if each.Type == "user" {
+		if user.Type == "user" {
 			usertype = sdk.SourceCodeUserTypeHuman
 		} else {
 			usertype = sdk.SourceCodeUserTypeBot
 		}
 		if err := a.pipe.Write(&sdk.SourceCodeUser{
-			AvatarURL:             sdk.StringPointer(each.Links.Avatar.Href),
+			AvatarURL:             sdk.StringPointer(user.Links.Avatar.Href),
 			CustomerID:            a.customerID,
-			RefID:                 each.UUID,
+			RefID:                 user.RefID(),
 			RefType:               a.refType,
 			Member:                true,
-			Name:                  each.DisplayName,
+			Name:                  user.DisplayName,
 			Type:                  usertype,
-			URL:                   sdk.StringPointer(each.Links.HTML.Href),
+			URL:                   sdk.StringPointer(user.Links.HTML.Href),
 			IntegrationInstanceID: sdk.StringPointer(a.integrationInstanceID),
 		}); err != nil {
 			return fmt.Errorf("error sending user to pipe: %w", err)
 		}
 	}
 	return nil
+}
+
+// RefID will return the the ref_id of the user
+func (u *attlassianUser) RefID() string {
+	return u.AccountID
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -10,7 +11,7 @@ import (
 )
 
 // FetchPullRequests gets team members
-func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Time) error {
+func (a *API) FetchPullRequests(reponame string, repoRefID string, updated time.Time) error {
 	sdk.LogDebug(a.logger, "fetching pull requests", "repo", reponame)
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests")
 	params := url.Values{}
@@ -25,7 +26,7 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 	// Greater than 50 throws "Invalid pagelen"
 	params.Set("pagelen", "50")
 
-	out := make(chan objects)
+	out := make(chan json.RawMessage)
 	errchan := make(chan error)
 	var count int
 	go func() {
@@ -34,11 +35,11 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 				continue
 			}
 			rawResponse := []PullRequestResponse{}
-			if err := obj.Unmarshal(&rawResponse); err != nil {
+			if err := json.Unmarshal(obj, &rawResponse); err != nil {
 				errchan <- err
 				return
 			}
-			if err := a.processPullRequests(rawResponse, reponame, repoid, updated); err != nil {
+			if err := a.processPullRequests(rawResponse, reponame, repoRefID, updated); err != nil {
 				errchan <- err
 				return
 			}
@@ -56,26 +57,26 @@ func (a *API) FetchPullRequests(reponame string, repoid string, updated time.Tim
 	return nil
 }
 
-func (a *API) processPullRequests(raw []PullRequestResponse, reponame string, repoid string, updated time.Time) error {
+func (a *API) processPullRequests(raw []PullRequestResponse, reponame string, repoRefID string, updated time.Time) error {
 	async := sdk.NewAsync(10)
 	for _, _pr := range raw {
 		pr := _pr
 		async.Do(func() error {
-			return a.fetchPullRequestComments(pr, reponame, repoid, updated)
+			return a.fetchPullRequestComments(pr, reponame, repoRefID, updated)
 		})
 		async.Do(func() error {
-			return a.fetchPullRequestCommits(pr, reponame, repoid, updated)
+			return a.ExtractPullRequestReview(pr, repoRefID)
 		})
 		async.Do(func() error {
-			return a.ExtractPullRequestReview(pr, repoid)
+			shas, err := a.fetchPullRequestCommits(pr, reponame, repoRefID, updated)
+			if err != nil {
+				return err
+			}
+			return a.sendPullRequest(pr, repoRefID, updated, shas)
 		})
 	}
 	if err := async.Wait(); err != nil {
 		return err
-	}
-	// we need the first commit of every pr in the pr object, wait for the commits to be fetched before processing prs
-	for _, pr := range raw {
-		a.sendPullRequest(pr, repoid, updated)
 	}
 	return nil
 }
@@ -116,33 +117,35 @@ func (a *API) syncPRReviewRequests(prID string, currentRequests map[string]bool)
 }
 
 // ExtractPullRequestReview will pull out reviews and review requests from a pr and send them to the pipe
-func (a *API) ExtractPullRequestReview(raw PullRequestResponse, repoID string) error {
-	prID := sdk.NewSourceCodePullRequestID(a.customerID, strconv.FormatInt(raw.ID, 10), a.refType, repoID)
+func (a *API) ExtractPullRequestReview(raw PullRequestResponse, repoRefID string) error {
+	prID := sdk.NewSourceCodePullRequestID(a.customerID, strconv.FormatInt(raw.ID, 10), a.refType, repoRefID)
+	repoID := sdk.NewSourceCodeRepoID(a.customerID, repoRefID, a.refType)
 	requests := make(map[string]bool)
 	for _, participant := range raw.Participants {
 		if participant.Role == "REVIEWER" {
 			if participant.Approved {
 				if err := a.pipe.Write(&sdk.SourceCodePullRequestReview{
 					Active:                true,
+					CreatedDate:           sdk.SourceCodePullRequestReviewCreatedDate(*sdk.NewDateWithTime(participant.ParticipatedOn)),
 					IntegrationInstanceID: sdk.StringPointer(a.integrationInstanceID),
 					CustomerID:            a.customerID,
 					PullRequestID:         prID,
 					RefID:                 sdk.Hash(raw.ID, participant.User.AccountID),
 					RefType:               a.refType,
 					RepoID:                repoID,
-					UserRefID:             participant.User.UUID,
+					UserRefID:             participant.User.AccountID,
 					State:                 sdk.SourceCodePullRequestReviewStateApproved,
 				}); err != nil {
 					return fmt.Errorf("error writing review to pipe: %w", err)
 				}
 			} else if participant.ParticipatedOn.IsZero() {
 				// a non-participated reviewer is counted as a request
-				id := sdk.NewSourceCodePullRequestReviewRequestID(a.customerID, a.refType, prID, participant.User.UUID)
+				id := sdk.NewSourceCodePullRequestReviewRequestID(a.customerID, a.refType, prID, participant.User.AccountID)
 				sdk.LogDebug(a.logger, "sending a pr review request", "_id", id)
 				if err := a.pipe.Write(&sdk.SourceCodePullRequestReviewRequest{
 					Active:                 true,
 					CreatedDate:            sdk.SourceCodePullRequestReviewRequestCreatedDate(*sdk.NewDateWithTime(raw.UpdatedOn)),
-					RequestedReviewerRefID: participant.User.UUID,
+					RequestedReviewerRefID: participant.User.AccountID,
 					RefType:                a.refType,
 					PullRequestID:          prID,
 					CustomerID:             a.customerID,
@@ -159,54 +162,60 @@ func (a *API) ExtractPullRequestReview(raw PullRequestResponse, repoID string) e
 }
 
 // ConvertPullRequest converts from raw response to pinpoint object
-func (a *API) ConvertPullRequest(raw PullRequestResponse, repoid, firstsha string) *sdk.SourceCodePullRequest {
-
-	commitid := sdk.NewSourceCodeCommitID(a.customerID, firstsha, a.refType, repoid)
+func (a *API) ConvertPullRequest(raw PullRequestResponse, repoRefID string, commitShas []string) *sdk.SourceCodePullRequest {
+	var firstSha string
+	if len(commitShas) > 0 {
+		firstSha = commitShas[0]
+	} else {
+		sdk.LogInfo(a.logger, "no first commit sha found for pr", "pr", raw.ID, "repo", repoRefID)
+	}
+	repoID := sdk.NewSourceCodeRepoID(a.customerID, repoRefID, a.refType)
+	firstCommitID := sdk.NewSourceCodeCommitID(a.customerID, firstSha, a.refType, repoID)
+	var commitIDs []string
+	for _, sha := range commitShas {
+		commitIDs = append(commitIDs, sdk.NewSourceCodeCommitID(a.customerID, sha, a.refType, repoID))
+	}
 	pr := &sdk.SourceCodePullRequest{
 		Active:                true,
 		CustomerID:            a.customerID,
 		IntegrationInstanceID: sdk.StringPointer(a.integrationInstanceID),
 		RefType:               a.refType,
 		RefID:                 fmt.Sprint(raw.ID),
-		RepoID:                sdk.NewSourceCodeRepoID(a.customerID, repoid, a.refType),
-		BranchID:              sdk.NewSourceCodeBranchID(a.customerID, repoid, a.refType, raw.Source.Branch.Name, commitid),
+		RepoID:                repoID,
+		BranchID:              sdk.NewSourceCodeBranchID(a.customerID, repoID, a.refType, raw.Source.Branch.Name, firstCommitID),
 		BranchName:            raw.Source.Branch.Name,
 		Title:                 raw.Title,
 		Description:           `<div class="source-bitbucket">` + sdk.ConvertMarkdownToHTML(raw.Description) + "</div>",
 		URL:                   raw.Links.HTML.Href,
 		Identifier:            fmt.Sprintf("#%d", raw.ID), // in bitbucket looks like #1 is the format for PR identifiers in their UI
-		CreatedByRefID:        raw.Author.UUID,
+		CreatedByRefID:        raw.Author.RefID(),
+		CommitShas:            commitShas,
+		CommitIds:             commitIDs,
 	}
 	sdk.ConvertTimeToDateModel(raw.CreatedOn, &pr.CreatedDate)
-	sdk.ConvertTimeToDateModel(raw.UpdatedOn, &pr.MergedDate)
-	sdk.ConvertTimeToDateModel(raw.UpdatedOn, &pr.ClosedDate)
 	sdk.ConvertTimeToDateModel(raw.UpdatedOn, &pr.UpdatedDate)
 	switch raw.State {
 	case "OPEN":
 		pr.Status = sdk.SourceCodePullRequestStatusOpen
 	case "DECLINED":
 		pr.Status = sdk.SourceCodePullRequestStatusClosed
-		pr.ClosedByRefID = raw.ClosedBy.AccountID
+		pr.ClosedByRefID = raw.ClosedBy.RefID()
+		sdk.ConvertTimeToDateModel(raw.UpdatedOn, &pr.ClosedDate)
 	case "MERGED":
 		pr.MergeSha = raw.MergeCommit.Hash
 		pr.MergeCommitID = sdk.NewSourceCodeCommitID(a.customerID, raw.MergeCommit.Hash, a.refType, pr.RepoID)
-		pr.MergedByRefID = raw.ClosedBy.AccountID
+		pr.MergedByRefID = raw.ClosedBy.RefID()
 		pr.Status = sdk.SourceCodePullRequestStatusMerged
+		sdk.ConvertTimeToDateModel(raw.UpdatedOn, &pr.MergedDate)
 	default:
 		sdk.LogError(a.logger, "PR has an unknown state", "state", raw.State, "ref_id", pr.RefID)
 	}
 	return pr
 }
 
-func (a *API) sendPullRequest(raw PullRequestResponse, repoid string, updated time.Time) {
+func (a *API) sendPullRequest(raw PullRequestResponse, repoRefID string, updated time.Time, commitShas []string) error {
 	if raw.UpdatedOn.Before(updated) {
-		return
+		return nil
 	}
-	prid := fmt.Sprint(raw.ID)
-	var firstsha string
-	ok, _ := a.state.Get(FirstSha(repoid, prid), &firstsha)
-	if !ok {
-		sdk.LogInfo(a.logger, "no first commit sha found for pr", "pr", raw.ID, "repo", repoid)
-	}
-	a.pipe.Write(a.ConvertPullRequest(raw, repoid, firstsha))
+	return a.pipe.Write(a.ConvertPullRequest(raw, repoRefID, commitShas))
 }

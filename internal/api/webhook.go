@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/url"
 
 	"github.com/pinpt/agent/v4/sdk"
@@ -51,7 +52,7 @@ func (a *API) DeleteWebhook(reponame, uuid string) error {
 // DeleteExistingWebHooks deletes all the pinpoint webhooks
 func (a *API) DeleteExistingWebHooks(reponame string) error {
 	endpoint := sdk.JoinURL("repositories", reponame, "hooks")
-	out := make(chan objects)
+	out := make(chan json.RawMessage)
 	errchan := make(chan error)
 	go func() {
 		for obj := range out {
@@ -59,7 +60,7 @@ func (a *API) DeleteExistingWebHooks(reponame string) error {
 				Description string `json:"description"`
 				UUID        string `json:"uuid"`
 			}
-			if err := obj.Unmarshal(&resp); err != nil {
+			if err := json.Unmarshal(obj, &resp); err != nil {
 				errchan <- err
 				return
 			}

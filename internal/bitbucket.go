@@ -5,14 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pinpt/bitbucket/internal/api"
 	"github.com/pinpt/agent/v4/sdk"
+	"github.com/pinpt/bitbucket/internal/api"
 )
 
 // BitBucketIntegration is an integration for BitBucket
 type BitBucketIntegration struct {
-	logger  sdk.Logger
-	config  sdk.Config
 	manager sdk.Manager
 	refType string
 
@@ -23,42 +21,41 @@ var _ sdk.Integration = (*BitBucketIntegration)(nil)
 
 // Start is called when the integration is starting up
 func (g *BitBucketIntegration) Start(logger sdk.Logger, config sdk.Config, manager sdk.Manager) error {
-	g.logger = sdk.LogWith(logger, "pkg", "bitbucket")
-	g.config = config
+	logger = sdk.LogWith(logger, "pkg", "bitbucket")
 	g.manager = manager
 	g.refType = "bitbucket"
 	g.httpClient = g.manager.HTTPManager().New("https://api.bitbucket.org/2.0", nil)
-	sdk.LogInfo(g.logger, "starting")
+	sdk.LogInfo(logger, "starting")
 	return nil
 }
 
 // Enroll is called when a new integration instance is added
 func (g *BitBucketIntegration) Enroll(instance sdk.Instance) error {
-	sdk.LogInfo(g.logger, "enrolling agent")
+	sdk.LogInfo(instance.Logger(), "enrolling agent")
 	return g.registerUnregisterWebhooks(instance, true)
 }
 
 // Dismiss is called when an existing integration instance is removed
 func (g *BitBucketIntegration) Dismiss(instance sdk.Instance) error {
-	sdk.LogInfo(g.logger, "dismissing webhooks")
+	sdk.LogInfo(instance.Logger(), "dismissing webhooks")
 	return g.registerUnregisterWebhooks(instance, false)
 }
 
 // Stop is called when the integration is shutting down for cleanup
-func (g *BitBucketIntegration) Stop() error {
-	sdk.LogInfo(g.logger, "stopping")
+func (g *BitBucketIntegration) Stop(logger sdk.Logger) error {
+	sdk.LogInfo(logger, "stopping")
 	return nil
 }
 
-func (g *BitBucketIntegration) getHTTPCredOpts(config sdk.Config) sdk.WithHTTPOption {
+func (g *BitBucketIntegration) getHTTPCredOpts(logger sdk.Logger, config sdk.Config) sdk.WithHTTPOption {
 	if config.BasicAuth != nil {
-		sdk.LogInfo(g.logger, "using basic auth")
+		sdk.LogInfo(logger, "using basic auth")
 		return sdk.WithBasicAuth(
 			config.BasicAuth.Username,
 			config.BasicAuth.Password,
 		)
 	}
-	sdk.LogInfo(g.logger, "using oauth2")
+	sdk.LogInfo(logger, "using oauth2")
 	return sdk.WithOAuth2Refresh(
 		g.manager, g.refType,
 		config.OAuth2Auth.AccessToken,
@@ -68,7 +65,9 @@ func (g *BitBucketIntegration) getHTTPCredOpts(config sdk.Config) sdk.WithHTTPOp
 
 // Export is called to tell the integration to run an export
 func (g *BitBucketIntegration) Export(export sdk.Export) error {
-	sdk.LogInfo(g.logger, "export started")
+	logger := export.Logger()
+	sdk.LogInfo(logger, "export started")
+	ts := time.Now()
 
 	// Pipe must be called to begin an export and receive a pipe for sending data
 	pipe := export.Pipe()
@@ -95,12 +94,12 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	hasExclusions := config.Exclusions != nil
 	accounts := config.Accounts
 	if accounts == nil {
-		sdk.LogInfo(g.logger, "no accounts configured, will do only customer's account")
+		sdk.LogInfo(logger, "no accounts configured, will do only customer's account")
 	}
-	sdk.LogInfo(g.logger, "export starting", "customer", customerID)
+	sdk.LogInfo(logger, "export starting", "customer", customerID)
 
 	client := g.httpClient
-	creds := g.getHTTPCredOpts(config)
+	creds := g.getHTTPCredOpts(logger, config)
 	var updated time.Time
 	if !export.Historical() {
 		var strTime string
@@ -108,7 +107,7 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 			updated, _ = time.Parse(time.RFC3339Nano, strTime)
 		}
 	}
-	a := api.New(g.logger, client, state, pipe, customerID, export.IntegrationInstanceID(), g.refType, creds)
+	a := api.New(logger, client, state, pipe, customerID, export.IntegrationInstanceID(), g.refType, creds)
 	wss, err := a.FetchWorkSpaces()
 	if err != nil {
 		return err
@@ -157,17 +156,17 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 			}
 			count++
 		}
-		sdk.LogDebug(g.logger, "finished sending repos", "len", count)
+		sdk.LogDebug(logger, "finished sending repos", "len", count)
 	}()
 	go func() {
 		for _, team := range teams {
-			if err := a.FetchRepos(team, updated, repochan); err != nil {
-				sdk.LogError(g.logger, "error fetching repos", "err", err)
+			if err := a.FetchUsers(team, updated); err != nil {
+				sdk.LogError(logger, "error fetching repos", "err", err)
 				errchan <- err
 				return
 			}
-			if err := a.FetchUsers(team, updated); err != nil {
-				sdk.LogError(g.logger, "error fetching repos", "err", err)
+			if err := a.FetchRepos(team, updated, repochan); err != nil {
+				sdk.LogError(logger, "error fetching repos", "err", err)
 				errchan <- err
 				return
 			}
@@ -176,14 +175,14 @@ func (g *BitBucketIntegration) Export(export sdk.Export) error {
 	}()
 
 	if err := <-errchan; err != nil {
-		sdk.LogError(g.logger, "export finished with error", "err", err)
+		sdk.LogError(logger, "export finished with error", "err", err)
 		return err
 	}
 	state.Set("updated", time.Now().Format(time.RFC3339Nano))
 
 	close(repochan)
 
-	sdk.LogInfo(g.logger, "export finished")
+	sdk.LogInfo(logger, "export finished", "duration", time.Since(ts))
 
 	return nil
 }
