@@ -1,7 +1,7 @@
 name: Bitbucket
 ref_type: bitbucket
 description: This is the Atlassian Bitbucket integration for Pinpoint
-avatar_url: https://img.icons8.com/color/240/000000/bitbucket.png
+avatar_url: https://pinpoint.com/images/integrations/BitBucket.svg
 capabilities:
   - sourcecode.Repo
   - sourcecode.User
