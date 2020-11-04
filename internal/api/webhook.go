@@ -52,31 +52,21 @@ func (a *API) DeleteWebhook(reponame, uuid string) error {
 // DeleteExistingWebHooks deletes all the pinpoint webhooks
 func (a *API) DeleteExistingWebHooks(reponame string) error {
 	endpoint := sdk.JoinURL("repositories", reponame, "hooks")
-	out := make(chan json.RawMessage)
-	errchan := make(chan error)
-	go func() {
-		for obj := range out {
-			var resp []struct {
-				Description string `json:"description"`
-				UUID        string `json:"uuid"`
-			}
-			if err := json.Unmarshal(obj, &resp); err != nil {
-				errchan <- err
-				return
-			}
-			for _, wh := range resp {
-				if wh.Description == webhookName {
-					if err := a.DeleteWebhook(reponame, wh.UUID); err != nil {
-						errchan <- err
-						return
-					}
+	return a.paginate(endpoint, nil, func(obj json.RawMessage) error {
+		var resp []struct {
+			Description string `json:"description"`
+			UUID        string `json:"uuid"`
+		}
+		if err := json.Unmarshal(obj, &resp); err != nil {
+			return err
+		}
+		for _, wh := range resp {
+			if wh.Description == webhookName {
+				if err := a.DeleteWebhook(reponame, wh.UUID); err != nil {
+					return err
 				}
 			}
 		}
-		errchan <- nil
-	}()
-	if err := a.paginate(endpoint, nil, out); err != nil {
-		return err
-	}
-	return <-errchan
+		return nil
+	})
 }

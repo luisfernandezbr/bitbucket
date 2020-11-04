@@ -26,32 +26,19 @@ func (a *API) FetchPullRequests(reponame string, repoRefID string, updated time.
 	// Greater than 50 throws "Invalid pagelen"
 	params.Set("pagelen", "50")
 
-	out := make(chan json.RawMessage)
-	errchan := make(chan error)
 	var count int
-	go func() {
-		for obj := range out {
-			if len(obj) == 0 {
-				continue
-			}
-			rawResponse := []PullRequestResponse{}
-			if err := json.Unmarshal(obj, &rawResponse); err != nil {
-				errchan <- err
-				return
-			}
-			if err := a.processPullRequests(rawResponse, reponame, repoRefID, updated); err != nil {
-				errchan <- err
-				return
-			}
-			count += len(rawResponse)
+	if err := a.paginate(endpoint, params, func(obj json.RawMessage) error {
+		rawResponse := []PullRequestResponse{}
+		if err := json.Unmarshal(obj, &rawResponse); err != nil {
+			return err
 		}
-		errchan <- nil
-	}()
-	if err := a.paginate(endpoint, params, out); err != nil {
+		if err := a.processPullRequests(rawResponse, reponame, repoRefID, updated); err != nil {
+			return err
+		}
+		count += len(rawResponse)
+		return nil
+	}); err != nil {
 		return fmt.Errorf("error fetching prs. err %v", err)
-	}
-	if err := <-errchan; err != nil {
-		return err
 	}
 	sdk.LogDebug(a.logger, "finished fetching pull requests", "repo", reponame, "count", count)
 	return nil

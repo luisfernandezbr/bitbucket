@@ -17,33 +17,22 @@ func (a *API) fetchPullRequestComments(pr PullRequestResponse, reponame string, 
 		params.Set("q", `updated_on > `+updated.Format(updatedFormat))
 	}
 	params.Set("sort", "-updated_on")
-
-	out := make(chan json.RawMessage)
-	errchan := make(chan error)
 	var count int
-	go func() {
-		for obj := range out {
-			rawResponse := []PullRequestCommentResponse{}
-			if err := json.Unmarshal(obj, &rawResponse); err != nil {
-				errchan <- err
-				return
-			}
-			for _, rcomment := range rawResponse {
-				if err := a.pipe.Write(ConvertPullRequestComment(rcomment, repoRefID, fmt.Sprint(pr.ID), a.customerID, a.integrationInstanceID, a.refType)); err != nil {
-					errchan <- fmt.Errorf("error writing pr comment to pipe: %w", err)
-					return
-				}
-			}
-			count += len(rawResponse)
+	err := a.paginate(endpoint, params, func(obj json.RawMessage) error {
+		rawResponse := []PullRequestCommentResponse{}
+		if err := json.Unmarshal(obj, &rawResponse); err != nil {
+			return err
 		}
-		errchan <- nil
-	}()
-	err := a.paginate(endpoint, params, out)
+		for _, rcomment := range rawResponse {
+			if err := a.pipe.Write(ConvertPullRequestComment(rcomment, repoRefID, fmt.Sprint(pr.ID), a.customerID, a.integrationInstanceID, a.refType)); err != nil {
+				return fmt.Errorf("error writing pr comment to pipe: %w", err)
+			}
+		}
+		count += len(rawResponse)
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("error getting pr comments. err %v", err)
-	}
-	if err := <-errchan; err != nil {
-		return err
 	}
 	sdk.LogDebug(a.logger, "finished fetching pull request comments", "repo", reponame, "count", count)
 	return nil

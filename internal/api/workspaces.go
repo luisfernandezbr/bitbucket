@@ -17,25 +17,17 @@ func (a *API) FetchWorkSpaces() ([]WorkSpacesResponse, error) {
 	params.Set("role", "member")
 
 	var workspaces []WorkSpacesResponse
-	out := make(chan json.RawMessage)
-	errchan := make(chan error, 1)
-	go func() {
-		for obj := range out {
-			res := []WorkSpacesResponse{}
-			if err := json.Unmarshal(obj, &res); err != nil {
-				errchan <- err
-				return
-			}
-			workspaces = append(workspaces, res...)
+	err := a.paginate(endpoint, params, func(obj json.RawMessage) error {
+		res := []WorkSpacesResponse{}
+		if err := json.Unmarshal(obj, &res); err != nil {
+			return err
 		}
-		errchan <- nil
-	}()
-	err := a.paginate(endpoint, params, out)
+		workspaces = append(workspaces, res...)
+
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error fetching workspaces. err %v", err)
-	}
-	if err := <-errchan; err != nil {
-		return nil, err
 	}
 	sdk.LogDebug(a.logger, "finished fetching workspaces")
 	return workspaces, nil

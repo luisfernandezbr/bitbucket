@@ -23,31 +23,21 @@ func (a *API) FetchUsers(team string, updated time.Time) error {
 	endpoint := sdk.JoinURL("workspaces", team, "members")
 	params := url.Values{}
 	var count int
-	out := make(chan json.RawMessage)
-	errchan := make(chan error)
-	go func() {
-		for obj := range out {
-			rawUsers := []userResponse{}
-			if err := json.Unmarshal(obj, &rawUsers); err != nil {
-				errchan <- err
-				return
-			}
-			if err := a.sendUsers(rawUsers, updated); err != nil {
-				errchan <- err
-				return
-			}
-			count += len(rawUsers)
+	if err := a.paginate(endpoint, params, func(obj json.RawMessage) error {
+		rawUsers := []userResponse{}
+		if err := json.Unmarshal(obj, &rawUsers); err != nil {
+			return err
 		}
-		errchan <- nil
-	}()
-	if err := a.paginate(endpoint, params, out); err != nil {
+		if err := a.sendUsers(rawUsers, updated); err != nil {
+			return err
+		}
+		count += len(rawUsers)
+		return nil
+	}); err != nil {
 		rerr := err.(*sdk.HTTPError)
 		if rerr.StatusCode != http.StatusForbidden {
 			return fmt.Errorf("error fetching users. err %v", err)
 		}
-	}
-	if err := <-errchan; err != nil {
-		return err
 	}
 	sdk.LogDebug(a.logger, "finished fetching users", "team", team, "count", count)
 	return nil
