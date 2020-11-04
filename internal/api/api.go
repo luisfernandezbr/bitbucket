@@ -37,34 +37,7 @@ func New(logger sdk.Logger, client sdk.HTTPClient, state sdk.State, pipe sdk.Pip
 	}
 }
 
-func (a *API) paginate(endpoint string, params url.Values, out chan<- json.RawMessage) error {
-	if params == nil {
-		params = url.Values{}
-	}
-	defer close(out)
-	var page string
-	for {
-		var res paginationResponse
-		if page != "" {
-			params.Set("page", page)
-		}
-		_, err := a.get(endpoint, params, &res)
-		if err != nil {
-			return err
-		}
-		out <- res.Values
-		if res.Next == "" {
-			return nil
-		}
-		u, _ := url.Parse(res.Next)
-		page = u.Query().Get("page")
-		if page == "" {
-			return fmt.Errorf("no `page` in next. %v", u.String())
-		}
-	}
-}
-
-func (a *API) paginateAsync(endpoint string, params url.Values, callback func(buf json.RawMessage) error) error {
+func (a *API) paginate(endpoint string, params url.Values, callback func(buf json.RawMessage) error) error {
 	if params == nil {
 		params = url.Values{}
 	}

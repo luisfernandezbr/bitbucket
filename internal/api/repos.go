@@ -18,30 +18,21 @@ func (a *API) FetchRepos(team string, updated time.Time, repo chan<- *sdk.Source
 		params.Set("q", `updated_on > `+updated.Format(updatedFormat))
 	}
 	params.Set("sort", "-updated_on")
-	out := make(chan json.RawMessage)
-	errchan := make(chan error)
 	var count int
-	go func() {
-		for obj := range out {
-			rawRepos := []RepoResponse{}
-			if err := json.Unmarshal(obj, &rawRepos); err != nil {
-				errchan <- err
-				return
-			}
-			count += len(rawRepos)
-			for _, each := range rawRepos {
-				ts := time.Now()
-				repo <- a.ConvertRepo(each)
-				sdk.LogDebug(a.logger, "processed repo", "updated_on", each.UpdatedOn, "since", updated, "waited", time.Since(ts))
-			}
+	if err := a.paginate(endpoint, params, func(obj json.RawMessage) error {
+		rawRepos := []RepoResponse{}
+		if err := json.Unmarshal(obj, &rawRepos); err != nil {
+			return err
 		}
-		errchan <- nil
-	}()
-	if err := a.paginate(endpoint, params, out); err != nil {
+		count += len(rawRepos)
+		for _, each := range rawRepos {
+			ts := time.Now()
+			repo <- a.ConvertRepo(each)
+			sdk.LogDebug(a.logger, "processed repo", "updated_on", each.UpdatedOn, "since", updated, "waited", time.Since(ts))
+		}
+		return nil
+	}); err != nil {
 		return fmt.Errorf("error fetching repos. err %v", err)
-	}
-	if err := <-errchan; err != nil {
-		return err
 	}
 	sdk.LogDebug(a.logger, "finished fetching repos", "team", team, "count", count)
 	return nil

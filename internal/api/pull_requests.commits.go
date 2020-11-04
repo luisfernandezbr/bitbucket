@@ -14,7 +14,7 @@ import (
 func (a *API) FetchPullRequestCommits(reponame, prid string) ([]string, error) {
 	var shas []string
 	endpoint := sdk.JoinURL("repositories", reponame, "pullrequests", prid, "commits")
-	if err := a.paginateAsync(endpoint, nil, func(obj json.RawMessage) error {
+	if err := a.paginate(endpoint, nil, func(obj json.RawMessage) error {
 		rawResponse := []prCommitResponse{}
 		if err := json.Unmarshal(obj, &rawResponse); err != nil {
 			return err
@@ -40,7 +40,7 @@ func (a *API) fetchPullRequestCommits(pr PullRequestResponse, reponame string, r
 	params.Set("sort", "-updated_on")
 	var count int
 	var shas []string
-	err := a.paginateAsync(endpoint, params, func(obj json.RawMessage) error {
+	err := a.paginate(endpoint, params, func(obj json.RawMessage) error {
 		rawResponse := []prCommitResponse{}
 		if err := json.Unmarshal(obj, &rawResponse); err != nil {
 			return err
