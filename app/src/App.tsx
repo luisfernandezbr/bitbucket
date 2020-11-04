@@ -11,10 +11,10 @@ function App() {
 			tags: ['Source Code Management', 'Issue Management'],
 			installed: false,
 			refType: 'bitbucket',
-			icon: `https://img.icons8.com/color/240/000000/bitbucket.png`,
+			icon: 'https://pinpoint.com/images/integrations/BitBucket.svg',
 			publisher: {
 				name: 'Pinpoint',
-				avatar: 'https://avatars0.githubusercontent.com/u/24400526?s=200&v=4',
+				avatar: 'https://pinpoint.com/logo/logomark/blue.png',
 				url: 'https://pinpoint.com'
 			},
 			uiURL: window.location.href
